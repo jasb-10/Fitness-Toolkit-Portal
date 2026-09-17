@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { AlertTriangle, CheckCircle2, RefreshCw, Save, Webhook } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, RefreshCw, Save, Webhook } from "lucide-react";
 import { AdminPageHeader, AdminShell } from "@/components/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ type Event = {
   activationStatus: string; error: string | null; receivedAt: string;
 };
 type State = {
-  configured: boolean; webhookPath: string; activeEntitlements: number;
+  configured: boolean; setupComplete: boolean; webhookPath: string; activeEntitlements: number;
   mappings: Mapping[]; events: Event[];
 };
 
@@ -25,6 +25,8 @@ export default function AdminGhlPage() {
   const [data, setData] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState("");
+  const [copied, setCopied] = useState(false);
+  const webhookUrl = data ? `${window.location.origin}${basePath === "/" ? "" : basePath}${data.webhookPath}` : "";
 
   async function request(path = "", init?: RequestInit) {
     const token = await getToken();
@@ -57,6 +59,11 @@ export default function AdminGhlPage() {
     catch (e) { setError(e instanceof Error ? e.message : "Retry failed"); }
     finally { setSaving(""); }
   }
+  async function copyWebhookUrl() {
+    await navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
 
   return (
     <AdminShell>
@@ -64,9 +71,13 @@ export default function AdminGhlPage() {
       <div className="space-y-8 px-5 py-8 sm:px-10">
         {error && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatusCard label="Webhook security" value={data?.configured ? "Configured" : "Secret required"} ok={Boolean(data?.configured)} />
+          <StatusCard label="GHL connection" value={data?.setupComplete ? "Purchase event received" : "Awaiting GHL setup"} ok={Boolean(data?.setupComplete)} detail={data?.configured ? "Webhook security configured" : "Webhook secret required"} />
           <StatusCard label="Active unlocks" value={String(data?.activeEntitlements ?? 0)} ok />
-          <StatusCard label="Endpoint" value={data?.webhookPath ?? "Loading…"} ok={Boolean(data)} />
+          <div className="rounded-2xl border border-border bg-card p-5 sm:col-span-1">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground"><Webhook className="h-4 w-4 text-muted-foreground" />Webhook URL</div>
+            <div className="mt-3 break-all text-sm font-semibold">{webhookUrl || "Loading…"}</div>
+            <Button className="mt-4" size="sm" variant="outline" onClick={() => void copyWebhookUrl()} disabled={!webhookUrl}>{copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}{copied ? "Copied" : "Copy full URL"}</Button>
+          </div>
         </div>
 
         <section className="rounded-2xl border border-border bg-card">
@@ -79,7 +90,7 @@ export default function AdminGhlPage() {
                   <Input className="mt-2" value={mapping.externalProductId ?? ""} disabled={!mapping.deliverableReady}
                     onChange={(e) => setData((current) => current ? { ...current, mappings: current.mappings.map((m, i) => i === index ? { ...m, externalProductId: e.target.value } : m) } : current)} />
                 </label>
-                <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={mapping.enabled} disabled={!mapping.deliverableReady}
+                <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={Boolean(mapping.externalProductId) && mapping.enabled} disabled={!mapping.deliverableReady || !mapping.externalProductId}
                   onChange={(e) => setData((current) => current ? { ...current, mappings: current.mappings.map((m, i) => i === index ? { ...m, enabled: e.target.checked } : m) } : current)} /> Enabled</label>
                 <Button onClick={() => void save(mapping)} disabled={!mapping.deliverableReady || saving === mapping.productCode}><Save className="mr-2 h-4 w-4" />Save</Button>
               </div>
@@ -99,6 +110,6 @@ export default function AdminGhlPage() {
   );
 }
 
-function StatusCard({ label, value, ok }: { label: string; value: string; ok: boolean }) {
-  return <div className="rounded-2xl border border-border bg-card p-5"><div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">{ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}{label}</div><div className="mt-3 break-all font-semibold">{value}</div></div>;
+function StatusCard({ label, value, ok, detail }: { label: string; value: string; ok: boolean; detail?: string }) {
+  return <div className="rounded-2xl border border-border bg-card p-5"><div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">{ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}{label}</div><div className="mt-3 break-all font-semibold">{value}</div>{detail && <div className="mt-1 text-xs text-muted-foreground">{detail}</div>}</div>;
 }

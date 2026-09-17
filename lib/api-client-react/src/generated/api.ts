@@ -93,6 +93,7 @@ import type {
   UploadUrlResponse,
   UpsertSupportArticleBody,
   User,
+  WebsiteCopyRefinement,
   WebsiteProject
 } from './api.schemas';
 
@@ -908,6 +909,89 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getGenerateWebsiteProjectMutationOptions(options));
+    }
+
+export const getRefineWebsiteProjectUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/website-projects/${projectId}/refine`
+}
+
+export const refineWebsiteProject = async (projectId: string,
+    websiteCopyRefinement: WebsiteCopyRefinement, options?: Parameters<typeof customFetch>[1]): Promise<WebsiteProject> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WebsiteProject>(getRefineWebsiteProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(websiteCopyRefinement)
+  }
+);}
+
+
+
+
+
+export const getRefineWebsiteProjectMutationKey = () => ['refineWebsiteProject'] as const;
+
+export const getRefineWebsiteProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refineWebsiteProject>>, TError,RefineWebsiteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refineWebsiteProject>>, TError,RefineWebsiteProjectMutationVariables, TContext> => {
+
+const mutationKey = getRefineWebsiteProjectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refineWebsiteProject>>, RefineWebsiteProjectMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  refineWebsiteProject(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefineWebsiteProjectMutationResult = NonNullable<Awaited<ReturnType<typeof refineWebsiteProject>>>
+    export type RefineWebsiteProjectMutationBody = BodyType<WebsiteCopyRefinement>
+    export type RefineWebsiteProjectMutationError = ErrorType<unknown>
+    export type RefineWebsiteProjectMutationVariables = {projectId: string;data: BodyType<WebsiteCopyRefinement>}
+
+    export const useRefineWebsiteProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refineWebsiteProject>>, TError,RefineWebsiteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refineWebsiteProject>>,
+        TError,
+        RefineWebsiteProjectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRefineWebsiteProjectMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {

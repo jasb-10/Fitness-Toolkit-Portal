@@ -124,6 +124,33 @@ export interface UpdateWebsiteProjectBody {
   progressData?: UpdateWebsiteProjectBodyProgressDataItem[];
 }
 
+export type WebsiteCopyRefinementSelectedPart = typeof WebsiteCopyRefinementSelectedPart[keyof typeof WebsiteCopyRefinementSelectedPart];
+
+
+export const WebsiteCopyRefinementSelectedPart = {
+  headline: 'headline',
+  subheadline: 'subheadline',
+  about: 'about',
+  button: 'button',
+} as const;
+
+export type WebsiteCopyRefinementCurrentCopy = {
+  headline: string;
+  subheadline: string;
+  about: string;
+  button: string;
+};
+
+export interface WebsiteCopyRefinement {
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  prompt: string;
+  selectedPart: WebsiteCopyRefinementSelectedPart;
+  currentCopy: WebsiteCopyRefinementCurrentCopy;
+}
+
 export type ProjectAssetFocalPoint = {
   x?: number;
   y?: number;

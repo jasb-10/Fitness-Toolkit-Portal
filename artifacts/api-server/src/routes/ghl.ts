@@ -156,8 +156,16 @@ router.get("/admin/ghl", async (_req, res: Response) => {
   return res.json({
     configured: Boolean(process.env.GHL_WEBHOOK_SECRET),
     webhookPath: "/api/webhooks/ghl/purchase",
+    setupComplete: events.some((event) =>
+      event.eventType === "paid" &&
+      event.processingStatus === "completed" &&
+      Boolean(event.productCode)
+    ),
     activeEntitlements: Number(active[0]?.count ?? 0),
-    mappings,
+    mappings: mappings.map((mapping) => ({
+      ...mapping,
+      enabled: Boolean(mapping.externalProductId) && mapping.enabled,
+    })),
     events,
   });
 });
@@ -165,9 +173,10 @@ router.get("/admin/ghl", async (_req, res: Response) => {
 router.patch("/admin/ghl/mappings/:productCode", async (req, res: Response) => {
   await ensureMappings();
   const body = mappingBody.parse(req.body);
+  const enabled = Boolean(body.externalProductId) && body.enabled;
   const [updated] = await db.update(ghlProductMappingsTable).set({
     externalProductId: body.externalProductId,
-    enabled: body.enabled,
+    enabled,
     updatedAt: new Date(),
   }).where(eq(ghlProductMappingsTable.productCode, req.params.productCode!)).returning();
   if (!updated) return res.status(404).json({ error: "Product mapping not found" });

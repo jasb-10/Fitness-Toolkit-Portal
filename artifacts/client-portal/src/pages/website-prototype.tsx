@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import {
   useListWebsiteProjects,
   useCreateWebsiteProject,
@@ -8,6 +9,7 @@ import {
   useRequestUploadUrl,
   useRegisterProjectAsset,
   useGenerateWebsiteProject,
+  useRefineWebsiteProject,
 } from "@workspace/api-client-react";
 import {
   ArrowLeft,
@@ -82,6 +84,7 @@ type SiteCopy = {
   about: string;
   button: string;
 };
+type GeneratedSection = { id: string; title: string; body: string };
 
 type PaletteChoice = {
   id: string;
@@ -173,6 +176,26 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[char] || char);
 }
 
+function safeLink(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "#contact";
+  try {
+    const url = new URL(trimmed);
+    return ["http:", "https:", "mailto:", "tel:"].includes(url.protocol) ? trimmed : "#contact";
+  } catch {
+    return "#contact";
+  }
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Invalid image data"));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function WebsitePrototypePage({ accountName, accountEmail, accountRole, onSignOut }: { accountName?: string; accountEmail?: string; accountRole?: string | null; onSignOut?: () => void }) {
   const resetRequested = new URLSearchParams(window.location.search).get("reset") === "1";
   const [stage, setStage] = useState<Stage>(() => resetRequested ? "home" : readStored("ftk-stage", "home"));
@@ -186,6 +209,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const [direction, setDirection] = useState(0);
   const [previewSize, setPreviewSize] = useState<PreviewSize>("desktop");
   const [copy, setCopy] = useState<SiteCopy>(() => readStored("ftk-copy", defaultCopy));
+  const [generatedSections, setGeneratedSections] = useState<GeneratedSection[]>([]);
   const [selectedPart, setSelectedPart] = useState<EditablePart>("headline");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiChanges, setAiChanges] = useState(10);
@@ -200,6 +224,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const imageRef = useRef<HTMLInputElement>(null);
   
   const isAuthenticated = !!onSignOut;
+  const { getToken } = useAuth();
   const qc = useQueryClient();
   const projectsQuery = useListWebsiteProjects({ query: { enabled: isAuthenticated, queryKey: getListWebsiteProjectsQueryKey() } });
   const createProject = useCreateWebsiteProject();
@@ -207,6 +232,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const requestUrl = useRequestUploadUrl();
   const registerAsset = useRegisterProjectAsset();
   const generateProject = useGenerateWebsiteProject();
+  const refineProject = useRefineWebsiteProject();
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const initRef = useRef(false);
@@ -237,6 +263,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         if (s.direction !== undefined) setDirection(s.direction as number);
         if (s.copy) setCopy(s.copy as SiteCopy);
       }
+      if (Array.isArray(p.sections)) setGeneratedSections(p.sections as GeneratedSection[]);
     } else {
       createProject.mutate({
         data: {
@@ -280,10 +307,8 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
     setSavedLabel("Saving...");
 
-    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour });
+    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections });
     if (isAuthenticated && projectId && stateToSave !== lastSavedStr.current && initRef.current) {
-      lastSavedStr.current = stateToSave;
-      
       if (saveTimeout.current) window.clearTimeout(saveTimeout.current);
       saveTimeout.current = window.setTimeout(() => {
         const mutateFn = updateProject.mutate;
@@ -294,10 +319,12 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
             briefData: brief as any,
             styleData: {
               styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy
-            }
+            },
+            sections: generatedSections as any,
           }
         }, {
           onSuccess: () => {
+             lastSavedStr.current = stateToSave;
              setSavedLabel("Saved");
           },
           onError: () => {
@@ -311,7 +338,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, isAuthenticated, projectId, resetRequested]);
+  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections, isAuthenticated, projectId, resetRequested]);
 
   useEffect(() => {
     if (stage !== "building") return;
@@ -342,6 +369,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       const generated = await generateProject.mutateAsync({ projectId });
       const generatedCopy = (generated.styleData as { copy?: SiteCopy } | null)?.copy;
       if (generatedCopy) setCopy(generatedCopy);
+      if (Array.isArray(generated.sections)) setGeneratedSections(generated.sections as GeneratedSection[]);
       setSavedLabel("Generated and saved");
       qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
         current?.map((item) => item.id === generated.id ? generated : item)
@@ -360,17 +388,26 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   const updateCopy = (part: EditablePart, value: string) => setCopy((current) => ({ ...current, [part]: value }));
 
-  const applyAiChange = () => {
-    if (!aiPrompt.trim() || aiChanges <= 0) return;
-    const request = aiPrompt.toLowerCase();
-    setCopy((current) => {
-      if (request.includes("warmer")) return { ...current, headline: "Feel stronger, supported and ready for more", subheadline: `Friendly ${brief.mainService || "personal coaching"} built around your life and your goals.` };
-      if (request.includes("short")) return { ...current, headline: "Strength that lasts", subheadline: "Clear coaching. Real support. Sustainable progress." };
-      if (request.includes("premium")) return { ...current, headline: "Personal coaching, elevated", subheadline: "A considered training experience designed around your performance and lifestyle." };
-      return { ...current, [selectedPart]: `${current[selectedPart]} Refined around your goals.` };
-    });
-    setAiChanges((count) => count - 1);
-    setAiPrompt("");
+  const applyAiChange = async () => {
+    if (!aiPrompt.trim() || aiChanges <= 0 || !projectId) return;
+    setSavedLabel("Applying edit...");
+    try {
+      const updated = await refineProject.mutateAsync({
+        projectId,
+        data: { prompt: aiPrompt.trim(), selectedPart, currentCopy: copy },
+      });
+      const updatedCopy = (updated.styleData as { copy?: SiteCopy } | null)?.copy;
+      if (!updatedCopy) throw new Error("Updated copy was missing");
+      setCopy(updatedCopy);
+      setAiChanges((count) => count - 1);
+      setAiPrompt("");
+      setSavedLabel("Edit applied and saved");
+      qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
+        current?.map((item) => item.id === updated.id ? updated : item)
+      );
+    } catch {
+      setSavedLabel("Edit failed — draft unchanged");
+    }
   };
 
   const handleAssets = async (files: FileList | null) => {
@@ -431,25 +468,45 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     }
   };
 
-  const downloadWebsite = () => {
+  const downloadWebsite = async () => {
     const included = brief.sections || initialBrief.sections;
     const h = escapeHtml;
     const service = brief.mainService || "Personal coaching";
     const editorial = fontStyle === "Premium editorial";
-    const booking = h(brief.bookingLink || "#contact");
+    const booking = h(safeLink(brief.bookingLink));
+    let exportedHero = heroImage;
+    if (ownPhoto && heroImage.startsWith("/")) {
+      try {
+        const token = await getToken();
+        const response = await fetch(heroImage, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+        if (!response.ok) throw new Error("Could not retrieve uploaded image");
+        exportedHero = await blobToDataUrl(await response.blob());
+      } catch {
+        setSavedLabel("Download failed — uploaded image unavailable");
+        return;
+      }
+    }
+    const generated = (id: string, fallbackTitle: string, fallbackBody: string) => {
+      const section = generatedSections.find((item) => item.id === id);
+      return { title: section?.title || fallbackTitle, body: section?.body || fallbackBody };
+    };
+    const services = generated("services", service, brief.offer || `A thoughtful way to get started with ${service.toLowerCase()}.`);
+    const approach = generated("approach", "A simple first step.", brief.process || "Tell us what you are working towards, and we will help you find the right way to begin.");
+    const about = generated("about", `Meet ${brief.businessName || "your coach"}.`, copy.about);
+    const contact = generated("contact", "Ready to begin?", brief.offer || "Take the first step towards your goals.");
     const sectionHtml = [
-      included.includes("services") ? `<section id="services" class="section"><div class="kicker">What we offer</div><h2>${h(service)}</h2><p>${h(brief.offer || `A thoughtful way to get started with ${service.toLowerCase()}.`)}</p><div class="grid"><article class="card"><h3>Personal to you</h3><p>Support shaped for ${h(brief.audience || "the people we work with")}.</p></article><article class="card"><h3>Clear next step</h3><p>${h(brief.goal || "Start with a conversation.")}</p></article><article class="card"><h3>Real support</h3><p>${h(brief.differentiator || "A considered approach that puts your goals first.")}</p></article></div></section>` : "",
-      included.includes("approach") ? `<section class="section tinted"><div class="kicker">Getting started</div><h2>A simple first step.</h2><p>${h(brief.process || "Tell us what you are working towards, and we will help you find the right way to begin.")}</p></section>` : "",
-      included.includes("about") ? `<section id="about" class="section"><div class="kicker">The people behind the work</div><h2>Meet ${h(brief.businessName || "your coach")}.</h2><p>${h(copy.about)}</p></section>` : "",
+      included.includes("services") ? `<section id="services" class="section"><div class="kicker">What we offer</div><h2>${h(services.title)}</h2><p>${h(services.body)}</p></section>` : "",
+      included.includes("approach") ? `<section class="section tinted"><div class="kicker">Getting started</div><h2>${h(approach.title)}</h2><p>${h(approach.body)}</p></section>` : "",
+      included.includes("about") ? `<section id="about" class="section"><div class="kicker">The people behind the work</div><h2>${h(about.title)}</h2><p>${h(about.body)}</p></section>` : "",
       included.includes("results") && (brief.credentials || brief.results) ? `<section id="results" class="section dark"><div class="kicker">Reasons to trust us</div><h2>Experience you can see.</h2>${brief.credentials ? `<p>${h(brief.credentials)}</p>` : ""}${brief.results ? `<p>${h(brief.results)}</p>` : ""}</section>` : "",
       included.includes("testimonial") && brief.testimonialQuote ? `<section class="section"><div class="kicker">From our clients</div><blockquote>“${h(brief.testimonialQuote)}”</blockquote>${brief.testimonialName ? `<p><strong>${h(brief.testimonialName)}</strong></p>` : ""}</section>` : "",
       included.includes("faq") && brief.faqQuestion && brief.faqAnswer ? `<section class="section tinted"><div class="kicker">Good to know</div><h2>Your questions, answered.</h2><h3>${h(brief.faqQuestion)}</h3><p>${h(brief.faqAnswer)}</p></section>` : "",
-      included.includes("contact") ? `<section id="contact" class="section contact"><h2>Ready to begin?</h2><p>${h(brief.offer || "Take the first step towards your goals.")}</p><a class="button light-button" href="${booking}">${h(copy.button)}</a></section>` : "",
+      included.includes("contact") ? `<section id="contact" class="section contact"><h2>${h(contact.title)}</h2><p>${h(contact.body)}</p><a class="button light-button" href="${booking}">${h(copy.button)}</a></section>` : "",
     ].join("");
     const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(brief.businessName || "Fitness Website")}</title><meta name="description" content="${escapeHtml(copy.subheadline)}">
-<style>*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:${editorial ? "Georgia,serif" : "Arial,sans-serif"};background:white;color:${palette.dark}}nav{display:flex;align-items:center;justify-content:space-between;padding:24px 6vw;background:${palette.dark};color:white}nav a{color:white;text-decoration:none;margin-left:24px;font:600 14px Arial,sans-serif}.hero{min-height:72vh;display:flex;align-items:center;padding:80px 7vw;color:white;background:linear-gradient(${direction === 1 ? "0deg" : "90deg"},${palette.dark}ef,${palette.dark}55),url('${heroImage}') center/cover}.hero.center{text-align:center;justify-content:center}.hero-inner{max-width:900px}.kicker{text-transform:uppercase;letter-spacing:.22em;color:${palette.accent};font:700 12px Arial,sans-serif}h1{font-size:clamp(3rem,7vw,6.5rem);line-height:.98;max-width:900px;margin:24px 0}h2{font-size:clamp(2.2rem,4vw,4rem);line-height:1.07;margin:20px 0}p{font-size:1.1rem;line-height:1.7;max-width:720px}.button{display:inline-block;margin-top:24px;padding:16px 24px;background:${palette.accent};color:white;text-decoration:none;font:700 15px Arial,sans-serif;border-radius:8px}.section{padding:90px 7vw}.section>*{max-width:1200px;margin-left:auto;margin-right:auto}.section>p{max-width:1200px}.tinted{background:${palette.light}}.dark{background:${palette.dark};color:white}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:36px}.card{padding:28px;background:#f3f4f5;border-radius:14px}.card p{font-size:.95rem}.contact{background:${palette.accent};color:white;text-align:center}.light-button{background:white;color:${palette.dark}}blockquote{font-size:clamp(1.6rem,3vw,3rem);max-width:900px;margin-top:36px}@media(max-width:700px){nav div:last-child{display:none}.grid{grid-template-columns:1fr}.hero{min-height:75vh}h1{font-size:3.2rem}.section{padding:64px 7vw}}</style></head>
+<style>*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:${editorial ? "Georgia,serif" : "Arial,sans-serif"};background:white;color:${palette.dark}}nav{display:flex;align-items:center;justify-content:space-between;padding:24px 6vw;background:${palette.dark};color:white}nav a{color:white;text-decoration:none;margin-left:24px;font:600 14px Arial,sans-serif}.hero{min-height:72vh;display:flex;align-items:center;padding:80px 7vw;color:white;background:linear-gradient(${direction === 1 ? "0deg" : "90deg"},${palette.dark}ef,${palette.dark}55),url('${exportedHero}') center/cover}.hero.center{text-align:center;justify-content:center}.hero-inner{max-width:900px}.kicker{text-transform:uppercase;letter-spacing:.22em;color:${palette.accent};font:700 12px Arial,sans-serif}h1{font-size:clamp(3rem,7vw,6.5rem);line-height:.98;max-width:900px;margin:24px 0}h2{font-size:clamp(2.2rem,4vw,4rem);line-height:1.07;margin:20px 0}p{font-size:1.1rem;line-height:1.7;max-width:720px}.button{display:inline-block;margin-top:24px;padding:16px 24px;background:${palette.accent};color:white;text-decoration:none;font:700 15px Arial,sans-serif;border-radius:8px}.section{padding:90px 7vw}.section>*{max-width:1200px;margin-left:auto;margin-right:auto}.section>p{max-width:1200px}.tinted{background:${palette.light}}.dark{background:${palette.dark};color:white}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:36px}.card{padding:28px;background:#f3f4f5;border-radius:14px}.card p{font-size:.95rem}.contact{background:${palette.accent};color:white;text-align:center}.light-button{background:white;color:${palette.dark}}blockquote{font-size:clamp(1.6rem,3vw,3rem);max-width:900px;margin-top:36px}@media(max-width:700px){nav div:last-child{display:none}.grid{grid-template-columns:1fr}.hero{min-height:75vh}h1{font-size:3.2rem}.section{padding:64px 7vw}}</style></head>
 <body>${brief.banner && brief.bannerText ? `<div style="background:${palette.accent};color:white;text-align:center;padding:10px;font-weight:700">${h(brief.bannerText)}</div>` : ""}<nav><strong>${h(brief.businessName || "YOUR BUSINESS")}</strong><div>${included.includes("services") ? `<a href="#services">Services</a>` : ""}${included.includes("about") ? `<a href="#about">About</a>` : ""}${included.includes("results") && (brief.credentials || brief.results) ? `<a href="#results">Results</a>` : ""}${included.includes("contact") ? `<a href="#contact">Contact</a>` : ""}</div></nav><section class="hero${direction === 1 ? " center" : ""}"><div class="hero-inner"><div class="kicker">${h(service)}</div><h1>${h(copy.headline)}</h1><p>${h(copy.subheadline)}</p><a class="button" href="${booking}">${h(copy.button)}</a></div></section>${sectionHtml}</body></html>`;
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -458,6 +515,19 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     link.download = `${(brief.businessName || "fitness-website").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+  const approveWebsite = async () => {
+    if (isAuthenticated && projectId) {
+      setSavedLabel("Approving...");
+      try {
+        await updateProject.mutateAsync({ projectId, data: { status: "approved", currentStage: "delivery", sections: generatedSections as any } });
+        setSavedLabel("Approved and saved");
+      } catch {
+        setSavedLabel("Approval failed");
+        return;
+      }
+    }
+    setStage("delivery");
   };
 
   return (
@@ -468,8 +538,8 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => setStage("direction")} palette={palette} />}
       {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} selected={direction} setSelected={setDirection} back={() => setStage("style")} build={beginBuild} />}
       {stage === "building" && <BuildingScreen brief={brief} palette={palette} copy={copy} heroImage={heroImage} index={buildIndex} />}
-      {stage === "editor" && <EditorScreen brief={brief} copy={copy} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => setStage("delivery")} saved={savedLabel} />}
-      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={downloadWebsite} />}
+      {stage === "editor" && <EditorScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} saved={savedLabel} />}
+      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
       <input ref={uploadRef} className="hidden" type="file" multiple accept="image/*,.pdf,.svg" onChange={(event) => handleAssets(event.target.files)} />
       <input ref={imageRef} className="hidden" type="file" accept="image/*" onChange={(event) => handleAssets(event.target.files)} />
       {showLocked && <LockedModal product={showLocked} close={() => setShowLocked(null)} />}
@@ -590,48 +660,53 @@ function recommendedSections(type: string) { if (type.includes("studio") || type
 
 function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Brief; palette: PaletteChoice; copy: SiteCopy; heroImage: string; index: number }) {
   const progress = Math.round(((index + 1) / buildStages.length) * 100);
-  return <div><ShellHeader title="Preparing your website preview" subtitle="We are applying your content and design choices. AI generation and automated review will be connected in a later version." />
+  return <div><ShellHeader title="Preparing your website preview" subtitle="We are writing and arranging your page from the information and evidence you supplied." />
     <div className="mx-auto max-w-[1320px] p-6 md:p-10"><section className="rounded-2xl border border-border bg-card p-6 md:p-8"><div className="flex items-center justify-between gap-5"><div><div className="text-xs font-bold text-muted-foreground">Stage {index + 1} of {buildStages.length}</div><h2 className="mt-2 text-2xl font-black">{buildStages[index][0]}</h2></div><div className="text-3xl font-black">{progress}%</div></div><div className="mt-6 h-3 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-secondary transition-all duration-500" style={{ width: `${progress}%` }} /></div>
       <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_340px]"><div><div className="rounded-2xl bg-secondary p-6"><div className="flex items-start gap-4"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><RefreshCw className="h-5 w-5 animate-spin" /></div><div><div className="font-bold">{buildStages[index][0]}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{buildStages[index][1]}</p></div></div></div><div className="mt-5 overflow-hidden rounded-2xl border border-border bg-secondary p-5"><div className="grid gap-4 md:grid-cols-[1fr_190px]"><div className="relative min-h-72 overflow-hidden rounded-xl"><img src={heroImage} className="absolute inset-0 h-full w-full object-cover opacity-60" alt="Website being created" /><div className="absolute inset-0" style={{ background: `linear-gradient(90deg,${palette.dark},transparent)` }} /><div className="relative z-10 max-w-md p-8 text-white"><div className="text-[8px] font-bold uppercase tracking-widest" style={{ color: palette.accent }}>{brief.businessName || "Your business"}</div><div className="mt-4 text-4xl font-black leading-[.92]">{copy.headline}</div><div className="mt-5 h-9 w-28 rounded-lg" style={{ background: palette.accent }} /></div></div><div className="relative mx-auto mt-8 h-64 w-32 overflow-hidden rounded-[24px] border-4 border-border"><img src={heroImage} className="absolute inset-0 h-full w-full object-cover opacity-60" alt="Mobile preview" /><div className="absolute inset-0 bg-black/45" /><div className="relative z-10 p-4 pt-16 text-white"><div className="text-xl font-black leading-none">{copy.headline}</div><div className="mt-5 h-8 rounded-md" style={{ background: palette.accent }} /></div></div></div></div></div>
-        <aside><div className="rounded-2xl border border-border p-5"><div className="text-sm font-black">Personalising for your business</div><div className="mt-4 space-y-2">{[brief.businessName || "Your business", brief.mainService || "Your main service", brief.audience || "Your ideal customer", brief.goal, `${palette.name} direction`].map((item) => <div key={item} className="rounded-lg bg-secondary px-3 py-2.5 text-xs font-medium">{item}</div>)}</div></div><div className="mt-4 rounded-2xl bg-secondary p-5 text-white"><div className="text-xs font-bold">Current saving</div><p className="mt-2 text-xs leading-5 text-white/55">This draft is created and saved in your browser. Account sync and email delivery will be connected later.</p></div></aside></div></section></div>
+        <aside><div className="rounded-2xl border border-border p-5"><div className="text-sm font-black">Personalising for your business</div><div className="mt-4 space-y-2">{[brief.businessName || "Your business", brief.mainService || "Your main service", brief.audience || "Your ideal customer", brief.goal, `${palette.name} direction`].map((item) => <div key={item} className="rounded-lg bg-secondary px-3 py-2.5 text-xs font-medium">{item}</div>)}</div></div><div className="mt-4 rounded-2xl bg-secondary p-5 text-white"><div className="text-xs font-bold">Saved to your account</div><p className="mt-2 text-xs leading-5 text-white/55">Your brief, design choices and generated draft remain available when you return.</p></div></aside></div></section></div>
   </div>;
 }
 
-function EditorScreen({ brief, copy, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, saved }: { brief: Brief; copy: SiteCopy; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; saved: string }) {
-  return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Click any text, image or button to make changes.</div></div><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor }, { id: "tablet", icon: Tablet }, { id: "mobile", icon: Smartphone }] as const).map(({ id, icon: Icon }) => <button key={id} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><button className="p-2 text-muted-foreground"><RotateCcw className="h-4 w-4" /></button><button className="p-2 text-muted-foreground"><Redo2 className="h-4 w-4" /></button><div className="hidden items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
-    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} palette={palette} heroImage={heroImage} direction={direction} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
+function EditorScreen({ brief, copy, generatedSections, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, saved }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; saved: string }) {
+  return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Click any text, image or button to make changes.</div></div><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
+    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
       <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
       <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select></div>
-      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a quick copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without changing the layout." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} quick edits remaining</span><button onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div><button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-semibold"><RotateCcw className="h-4 w-4" />Restore previous version</button></aside></div>
+      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without adding new claims." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} assisted edits remaining</span><button aria-label="Apply copy edit" onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div></aside></div>
   </div>;
 }
 
-function WebsiteCanvas({ brief, copy, palette, heroImage, direction, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; palette: PaletteChoice; heroImage: string; direction: number; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
+function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, direction, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; heroImage: string; direction: number; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
   const narrow = previewSize === "mobile";
   const selected = "relative outline outline-2 outline-offset-4 outline-[#ef162f]";
   const included = brief.sections || initialBrief.sections;
   const editorial = fontStyle === "Premium editorial";
   const service = brief.mainService || "Personal coaching";
+  const generated = (id: string, title: string, body: string) => generatedSections.find((section) => section.id === id) || { title, body };
+  const services = generated("services", service, brief.offer || `A thoughtful way to get started with ${service.toLowerCase()}.`);
+  const approach = generated("approach", "A simple first step.", brief.process || "Tell us what you are working towards, and we will help you find the right way to begin.");
+  const about = generated("about", `Meet ${brief.businessName || "your coach"}.`, copy.about);
+  const contact = generated("contact", "Ready to begin?", brief.offer || "Take the first step towards your goals.");
   return <div className={cn("website-canvas", narrow && "website-canvas-narrow")} style={{ color: palette.dark, background: palette.light }}>
     <style>{`.website-canvas h1{font-size:3.75rem!important;overflow-wrap:normal;word-break:normal}.website-canvas-narrow h1{font-size:3rem!important}`}</style>
     {brief.banner && brief.bannerText && <div className="px-4 py-2 text-center text-xs font-bold text-white" style={{ background: palette.accent }}>{brief.bannerText}</div>}
     <nav className="flex items-center justify-between px-7 py-5 text-white" style={{ background: palette.dark }}><div className={cn("text-sm tracking-[.12em]", editorial ? "font-serif text-lg" : "font-black uppercase")}>{brief.businessName || "Your Business"}</div>{!narrow && <div className="flex items-center gap-6 text-[10px] font-semibold">{included.includes("services") && <span>Services</span>}{included.includes("about") && <span>About</span>}{included.includes("results") && <span>Results</span>}<span className="rounded-lg px-4 py-2 text-white" style={{ background: palette.accent }}>{copy.button}</span></div>}</nav>
     <section className={cn("relative overflow-hidden text-white", narrow ? "min-h-[610px]" : "min-h-[570px]")} style={{ background: palette.dark }}>{heroImage && (editable ? <button onClick={replaceImage} className="absolute inset-0 h-full w-full"><img src={heroImage} className="h-full w-full object-cover opacity-72" alt="Hero" /></button> : <img src={heroImage} className="absolute inset-0 h-full w-full object-cover opacity-72" alt="Hero" />)}<div className="absolute inset-0" style={{ background: direction === 1 ? `linear-gradient(0deg,${palette.dark}db,${palette.dark}44)` : `linear-gradient(90deg,${palette.dark} 5%,${palette.dark}e8 45%,${palette.dark}22)` }} /><div className={cn("relative z-10 flex min-h-[570px] flex-col justify-center", narrow ? "px-7" : direction === 1 ? "mx-auto max-w-[78%] items-center px-14 text-center" : "max-w-[70%] px-14")}><div className="text-[9px] font-bold uppercase tracking-[.24em]" style={{ color: palette.accent }}>{service}</div><button disabled={!editable} onClick={() => select("headline")} className={cn("mt-5", direction === 1 ? "text-center" : "text-left", editable && selectedPart === "headline" && selected)}><h1 className={cn("break-words leading-[.9] tracking-[-.055em]", narrow ? "text-5xl" : "text-7xl", editorial ? "font-serif font-semibold normal-case" : "font-sans font-black")}>{copy.headline}</h1>{editable && selectedPart === "headline" && <span className="absolute -top-9 left-0 inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[10px] font-bold text-white"><Pencil className="h-3 w-3" />Edit text</span>}</button><button disabled={!editable} onClick={() => select("subheadline")} className={cn("mt-5 max-w-xl text-sm leading-6 text-white/80", direction === 1 ? "text-center" : "text-left", editable && selectedPart === "subheadline" && selected)}>{copy.subheadline}</button><button disabled={!editable} onClick={() => select("button")} className={cn("mt-7 w-fit rounded-xl px-5 py-3.5 text-sm font-bold text-white", editable && selectedPart === "button" && selected)} style={{ background: palette.accent }}>{copy.button}<ArrowRight className="ml-2 inline h-4 w-4" /></button></div></section>
-    {included.includes("services") && <section id="services" className="p-10 md:p-14" style={{ background: "white" }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>What we offer</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>{service}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">{brief.offer || `A thoughtful way to get started with ${service.toLowerCase()}.`}</p><div className={cn("mt-8 grid gap-4", narrow ? "grid-cols-1" : "grid-cols-3")}><WebCard title="Personal to you" text={`Support shaped for ${brief.audience || "the people we work with"}.`} /><WebCard title="Clear next step" text={brief.goal || "Start with a conversation."} /><WebCard title="Real support" text={brief.differentiator || "A considered approach that puts your goals first."} /></div></section>}
-    {included.includes("approach") && <section className="p-10 md:p-14" style={{ background: palette.light }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>Getting started</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>A simple first step.</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">{brief.process || `Tell us what you are working towards, and we will help you find the right way to begin.`}</p></section>}
-    {included.includes("about") && <section className={cn("grid gap-8 p-10 md:p-14", narrow ? "grid-cols-1" : "grid-cols-[1fr_1fr]")}><div><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>The people behind the work</div><h2 className={cn("mt-4 text-4xl leading-tight", editorial ? "font-serif" : "font-black")}>Meet {brief.businessName || "your coach"}.</h2></div><button disabled={!editable} onClick={() => select("about")} className={cn("self-center text-left text-sm leading-7 text-muted-foreground", editable && selectedPart === "about" && selected)}>{copy.about}</button></section>}
+    {included.includes("services") && <section id="services" className="p-10 md:p-14" style={{ background: "white" }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>What we offer</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>{services.title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">{services.body}</p></section>}
+    {included.includes("approach") && <section className="p-10 md:p-14" style={{ background: palette.light }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>Getting started</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>{approach.title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">{approach.body}</p></section>}
+    {included.includes("about") && <section className={cn("grid gap-8 p-10 md:p-14", narrow ? "grid-cols-1" : "grid-cols-[1fr_1fr]")}><div><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>The people behind the work</div><h2 className={cn("mt-4 text-4xl leading-tight", editorial ? "font-serif" : "font-black")}>{about.title}</h2></div><button disabled={!editable} onClick={() => select("about")} className={cn("self-center text-left text-sm leading-7 text-muted-foreground", editable && selectedPart === "about" && selected)}>{about.body}</button></section>}
     {included.includes("results") && (brief.credentials || brief.results) && <section className="p-10 md:p-14" style={{ background: palette.dark, color: "white" }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>Reasons to trust us</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>Experience you can see.</h2><div className={cn("mt-8 grid gap-4", narrow ? "grid-cols-1" : "grid-cols-2")}>{brief.credentials && <div className="border-l-2 pl-5 text-sm leading-6" style={{ borderColor: palette.accent }}>{brief.credentials}</div>}{brief.results && <div className="border-l-2 pl-5 text-sm leading-6" style={{ borderColor: palette.accent }}>{brief.results}</div>}</div></section>}
     {included.includes("testimonial") && brief.testimonialQuote && <section className="p-10 md:p-14" style={{ background: "white" }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>From our clients</div><blockquote className={cn("mt-6 max-w-4xl text-3xl leading-snug", editorial ? "font-serif" : "font-semibold")}>“{brief.testimonialQuote}”</blockquote>{brief.testimonialName && <div className="mt-5 text-sm font-bold">{brief.testimonialName}</div>}</section>}
     {included.includes("faq") && brief.faqQuestion && brief.faqAnswer && <section className="p-10 md:p-14" style={{ background: palette.light }}><div className="text-[9px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>Good to know</div><h2 className={cn("mt-4 text-4xl", editorial ? "font-serif" : "font-black")}>Your questions, answered.</h2><div className="mt-7 max-w-3xl border-t pt-5"><h3 className="font-bold">{brief.faqQuestion}</h3><p className="mt-2 text-sm leading-7 text-muted-foreground">{brief.faqAnswer}</p></div></section>}
-    {included.includes("contact") && <section id="contact" className="p-10 text-center md:p-16" style={{ background: palette.accent, color: "white" }}><h2 className={cn("text-4xl", editorial ? "font-serif" : "font-black")}>Ready to begin?</h2><p className="mx-auto mt-4 max-w-lg text-sm leading-6">{brief.offer || "Take the first step towards your goals."}</p><div className="mx-auto mt-6 w-fit rounded-lg bg-card px-6 py-3 text-sm font-bold" style={{ color: palette.dark }}>{copy.button}</div></section>}
+    {included.includes("contact") && <section id="contact" className="p-10 text-center md:p-16" style={{ background: palette.accent, color: "white" }}><h2 className={cn("text-4xl", editorial ? "font-serif" : "font-black")}>{contact.title}</h2><p className="mx-auto mt-4 max-w-lg text-sm leading-6">{contact.body}</p><div className="mx-auto mt-6 w-fit rounded-lg bg-card px-6 py-3 text-sm font-bold" style={{ color: palette.dark }}>{copy.button}</div></section>}
   </div>;
 }
 
 function WebCard({ title, text }: { title: string; text: string }) { return <div className="rounded-xl bg-secondary p-5"><div className="font-bold">{title}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></div>; }
 
-function DeliveryScreen({ brief, copy, palette, fontStyle, heroImage, direction, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; ownPhoto: boolean; edit: () => void; download: () => void }) {
+function DeliveryScreen({ brief, copy, generatedSections, palette, fontStyle, heroImage, direction, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; ownPhoto: boolean; edit: () => void; download: () => void }) {
   return <div><ShellHeader step={5} title="Your website is ready" subtitle="Your approved website, files and publishing guidance are available below." />
-    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} palette={palette} heroImage={heroImage} direction={direction} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website package belongs to you and includes the current approved content and design.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is included in this download." : "This preview uses a demonstration photo. Replace it with a licensed or owned image before publishing."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" /><DeliveryChoice icon={Globe2} title="I already have hosting" /><DeliveryChoice icon={FileArchive} title="Give it to my developer" /></div></div></aside></section>
+    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website belongs to you and includes the current approved content and design in one portable HTML file.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website HTML</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is embedded inside the downloaded file." : "This preview uses a demonstration photo. Replace it with a licensed or owned image before publishing."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" /><DeliveryChoice icon={Globe2} title="I already have hosting" /><DeliveryChoice icon={FileArchive} title="Give it to my developer" /></div></div></aside></section>
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><BuildCheck title="Visual presentation" text="Colour, typography, imagery and spacing applied consistently." /><BuildCheck title="Visitor journey" text="Primary service and action established above the fold." /><BuildCheck title="Mobile presentation" text="Responsive layout prepared for phones and tablets." /><BuildCheck title="SEO foundations" text="Title, description, headings and image text prepared." /></section></div>
   </div>;
 }

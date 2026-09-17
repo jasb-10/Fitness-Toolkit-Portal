@@ -248,6 +248,42 @@ export const GenerateWebsiteProjectResponse = zod.object({
 })
 
 
+export const RefineWebsiteProjectParams = zod.object({
+  "projectId": zod.string().uuid()
+})
+
+export const refineWebsiteProjectBodyPromptMin = 3;
+export const refineWebsiteProjectBodyPromptMax = 500;
+
+
+
+export const RefineWebsiteProjectBody = zod.object({
+  "prompt": zod.string().min(refineWebsiteProjectBodyPromptMin).max(refineWebsiteProjectBodyPromptMax),
+  "selectedPart": zod.enum(['headline', 'subheadline', 'about', 'button']),
+  "currentCopy": zod.object({
+  "headline": zod.string(),
+  "subheadline": zod.string(),
+  "about": zod.string(),
+  "button": zod.string()
+})
+})
+
+export const RefineWebsiteProjectResponse = zod.object({
+  "id": zod.string().uuid(),
+  "userId": zod.string().uuid(),
+  "businessProfileId": zod.string().uuid().nullish(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "currentStage": zod.string(),
+  "briefData": zod.record(zod.string(), zod.unknown()),
+  "styleData": zod.record(zod.string(), zod.unknown()),
+  "sections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "progressData": zod.array(zod.record(zod.string(), zod.unknown())),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })

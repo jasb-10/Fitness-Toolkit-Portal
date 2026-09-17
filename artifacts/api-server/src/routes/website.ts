@@ -27,6 +27,16 @@ const registerProjectAssetBody = z.object({
   objectPath: z.string(), fileName: z.string(), contentType: z.string(),
   size: z.number().int().positive(), rightsStatus: z.string().optional(),
 });
+const refineWebsiteCopyBody = z.object({
+  prompt: z.string().trim().min(3).max(500),
+  selectedPart: z.enum(["headline", "subheadline", "about", "button"]),
+  currentCopy: z.object({
+    headline: z.string(),
+    subheadline: z.string(),
+    about: z.string(),
+    button: z.string(),
+  }),
+});
 
 function date(value: Date) {
   return value.toISOString();
@@ -171,7 +181,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
                   additionalProperties: false,
                   required: ["id", "title", "body"],
                   properties: {
-                    id: { type: "string" },
+                    id: { type: "string", enum: ["services", "approach", "about", "results", "testimonial", "faq", "contact"] },
                     title: { type: "string" },
                     body: { type: "string" },
                   },
@@ -187,6 +197,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
           content: `Create concise, conversion-focused website copy for a fitness or wellness business.
 Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, or locations.
 Write natural British English, avoid hype, avoid em dashes, and make the call to action match the supplied conversion goal.
+Create only the sections selected in websiteBrief.sections. Use the matching selected section ID exactly once.
 Return JSON only.`,
         },
         {
@@ -248,6 +259,71 @@ Return JSON only.`,
       updatedAt: new Date(),
     }).where(eq(websiteProjectsTable.id, projectId));
     return res.status(502).json({ error: "Website generation failed. Please try again." });
+  }
+});
+
+router.post("/website-projects/:projectId/refine", async (req, res: Response) => {
+  const { userId } = req as unknown as AuthedRequest;
+  const { projectId } = uuidParams.parse(req.params);
+  const project = await ownedProject(projectId, userId);
+  if (!project) return res.status(404).json({ error: "Website project not found" });
+  const body = refineWebsiteCopyBody.parse(req.body);
+
+  try {
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
+      max_completion_tokens: 900,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "website_copy_refinement",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["headline", "subheadline", "about", "button"],
+            properties: {
+              headline: { type: "string" },
+              subheadline: { type: "string" },
+              about: { type: "string" },
+              button: { type: "string" },
+            },
+          },
+        },
+      },
+      messages: [
+        {
+          role: "system",
+          content: `Refine website copy for a fitness or wellness business.
+Follow the requested change, focusing on the selected field while keeping the complete copy coherent.
+Use only facts present in the supplied brief and current copy. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, or locations.
+Write natural British English, avoid hype and em dashes, and return JSON only.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            request: body.prompt,
+            selectedPart: body.selectedPart,
+            currentCopy: body.currentCopy,
+            websiteBrief: project.briefData,
+          }),
+        },
+      ],
+    });
+    const content = completion.choices[0]?.message?.content;
+    if (!content) throw new Error("Copy editor returned no content");
+    const copy = refineWebsiteCopyBody.shape.currentCopy.parse(JSON.parse(content));
+    const [updated] = await db.update(websiteProjectsTable).set({
+      styleData: { ...project.styleData, copy },
+      status: "draft_ready",
+      currentStage: "editor",
+      updatedAt: new Date(),
+    }).where(eq(websiteProjectsTable.id, projectId)).returning();
+    return res.json(serializeProject(updated));
+  } catch (error) {
+    req.log.error({ err: error, projectId }, "Website copy refinement failed");
+    return res.status(502).json({ error: "The copy edit could not be completed. Your current draft is unchanged." });
   }
 });
 

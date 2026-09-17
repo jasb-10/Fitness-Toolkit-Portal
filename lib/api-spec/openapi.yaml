@@ -168,6 +168,24 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/WebsiteProject" }
 
+  /website-projects/{projectId}/refine:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: refineWebsiteProject
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebsiteCopyRefinement" }
+      responses:
+        "200":
+          description: Refined website project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteProject" }
+
   /healthz:
     get:
       operationId: healthCheck
@@ -1203,6 +1221,24 @@ components:
         styleData: { type: object, additionalProperties: true }
         sections: { type: array, items: { type: object, additionalProperties: true } }
         progressData: { type: array, items: { type: object, additionalProperties: true } }
+
+    WebsiteCopyRefinement:
+      type: object
+      required: [prompt, selectedPart, currentCopy]
+      properties:
+        prompt: { type: string, minLength: 3, maxLength: 500 }
+        selectedPart:
+          type: string
+          enum: [headline, subheadline, about, button]
+        currentCopy:
+          type: object
+          required: [headline, subheadline, about, button]
+          additionalProperties: false
+          properties:
+            headline: { type: string }
+            subheadline: { type: string }
+            about: { type: string }
+            button: { type: string }
 
     ProjectAsset:
       type: object
