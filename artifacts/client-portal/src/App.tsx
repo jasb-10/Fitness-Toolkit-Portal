@@ -47,6 +47,7 @@ import SupportPage from "@/pages/support";
 import NotFound from "@/pages/not-found";
 import ProductPreviewPage from "@/pages/product-preview";
 import WebsitePrototypePage from "@/pages/website-prototype";
+import { useGetMe } from "@workspace/api-client-react";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -70,6 +71,21 @@ function HomeRoute() {
         <WebsitePrototypePage />
       </Show>
     </>
+  );
+}
+
+function WebsiteBuilderRoute() {
+  const { signOut } = useClerk();
+  const { data: me } = useGetMe({
+    query: { refetchOnMount: "always" },
+  });
+
+  return (
+    <WebsitePrototypePage
+      accountName={me?.user.name ?? "Your account"}
+      accountRole={me?.user.role}
+      onSignOut={() => void signOut()}
+    />
   );
 }
 
@@ -183,7 +199,7 @@ function ClerkProviderWithRoutes() {
               <Protected><DashboardPage /></Protected>
             </Route>
             <Route path="/website">
-              <Protected><WebsitePrototypePage /></Protected>
+              <Protected><WebsiteBuilderRoute /></Protected>
             </Route>
             <Route path="/comeback/*?">
               <Redirect to="/website" />

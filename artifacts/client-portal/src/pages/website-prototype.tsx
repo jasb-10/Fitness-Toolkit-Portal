@@ -17,6 +17,8 @@ import {
   LayoutTemplate,
   Link2,
   Lock,
+  LogOut,
+  Menu,
   Monitor,
   Palette,
   Pencil,
@@ -24,6 +26,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  ShieldCheck,
   Smartphone,
   Sparkles,
   Tablet,
@@ -32,7 +35,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { basePath, cn } from "@/lib/utils";
 
 type Stage = "home" | "brief" | "content" | "style" | "direction" | "building" | "editor" | "delivery";
 type StyleMode = "recommend" | "choose" | "brand";
@@ -165,9 +168,10 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[char] || char);
 }
 
-export default function WebsitePrototypePage() {
+export default function WebsitePrototypePage({ accountName, accountRole, onSignOut }: { accountName?: string; accountRole?: string | null; onSignOut?: () => void }) {
   const resetRequested = new URLSearchParams(window.location.search).get("reset") === "1";
   const [stage, setStage] = useState<Stage>(() => resetRequested ? "home" : readStored("ftk-stage", "home"));
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [brief, setBrief] = useState<Brief>(() => resetRequested ? initialBrief : { ...initialBrief, ...readStored("ftk-brief", initialBrief) });
   const [styleMode, setStyleMode] = useState<StyleMode>(() => readStored("ftk-style-mode", "recommend"));
   const [moods, setMoods] = useState<string[]>(["Bold", "Premium"]);
@@ -313,8 +317,10 @@ export default function WebsitePrototypePage() {
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-[#17191c]">
-      <Sidebar stage={stage} setStage={setStage} showLocked={setShowLocked} reset={reset} />
+      <Sidebar stage={stage} setStage={setStage} showLocked={setShowLocked} reset={reset} accountName={accountName} accountRole={accountRole} onSignOut={onSignOut} />
+      {mobileNavOpen && <div className="fixed inset-0 z-50 flex lg:hidden"><button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} /><div className="relative z-10"><Sidebar mobile stage={stage} setStage={(next) => { setStage(next); setMobileNavOpen(false); }} showLocked={(name) => { setShowLocked(name); setMobileNavOpen(false); }} reset={reset} accountName={accountName} accountRole={accountRole} onSignOut={onSignOut} close={() => setMobileNavOpen(false)} /></div></div>}
       <main className="min-h-screen lg:ml-[236px]">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e4e5e7] bg-[#111214] px-4 py-3 text-white lg:hidden"><button type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation" className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><Menu className="h-5 w-5" /></button><button type="button" onClick={() => setStage("home")} className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#ef162f] text-sm font-black italic">F</span><span className="text-xs font-extrabold tracking-[.14em]">FITNESS TOOLKIT</span></button><div className="w-10" /></header>
         {stage === "home" && <HomeScreen start={() => setStage("brief")} resume={() => setStage(readStored<Stage>("ftk-last-stage", "brief"))} />}
         {stage === "brief" && <BriefScreen brief={brief} setBrief={setBrief} files={uploadedFiles} upload={() => uploadRef.current?.click()} removeFile={(name) => setUploadedFiles((items) => items.filter((item) => item !== name))} next={() => setStage("content")} saved={savedLabel} />}
         {stage === "content" && <ContentScreen brief={brief} setBrief={setBrief} back={() => setStage("brief")} next={() => setStage("style")} saved={savedLabel} />}
@@ -331,9 +337,10 @@ export default function WebsitePrototypePage() {
   );
 }
 
-function Sidebar({ stage, setStage, showLocked, reset }: { stage: Stage; setStage: (stage: Stage) => void; showLocked: (name: string) => void; reset: () => void }) {
-  return <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] flex-col border-r border-[#e4e5e7] bg-[#111214] text-white lg:flex">
-    <button onClick={() => setStage("home")} className="flex items-center gap-3 px-7 py-7 text-left"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[#ef162f] font-black italic">F</div><div><div className="text-sm font-extrabold tracking-tight">FITNESS</div><div className="text-[10px] tracking-[.32em] text-white/65">TOOLKIT</div></div></button>
+function Sidebar({ stage, setStage, showLocked, reset, accountName, accountRole, onSignOut, mobile = false, close }: { stage: Stage; setStage: (stage: Stage) => void; showLocked: (name: string) => void; reset: () => void; accountName?: string; accountRole?: string | null; onSignOut?: () => void; mobile?: boolean; close?: () => void }) {
+  const canAdmin = accountRole === "super_admin" || accountRole === "admin" || accountRole === "team";
+  return <aside className={cn("inset-y-0 left-0 z-30 w-[min(86vw,280px)] flex-col border-r border-[#e4e5e7] bg-[#111214] text-white lg:w-[236px]", mobile ? "flex h-[100dvh]" : "fixed hidden lg:flex")}>
+    <div className="flex items-center justify-between"><button onClick={() => setStage("home")} className="flex items-center gap-3 px-7 py-7 text-left"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[#ef162f] font-black italic">F</div><div><div className="text-sm font-extrabold tracking-tight">FITNESS</div><div className="text-[10px] tracking-[.32em] text-white/65">TOOLKIT</div></div></button>{mobile && <button type="button" aria-label="Close navigation" onClick={close} className="mr-4 rounded-lg p-2 text-white/65 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>}</div>
     <nav className="flex-1 space-y-1 px-3">
       <SideButton label="Home" icon={Home} active={stage === "home"} onClick={() => setStage("home")} />
       <SideButton label="My Website" icon={Monitor} active={stage !== "home"} onClick={() => setStage(stage === "home" ? "brief" : stage)} />
@@ -344,7 +351,11 @@ function Sidebar({ stage, setStage, showLocked, reset }: { stage: Stage; setStag
       <LockedButton label="Meta Ads" sub="Upsell 2" icon={Sparkles} onClick={() => showLocked("Meta Ad Launch Pack")} />
       <div className="mt-6 border-t border-white/10 pt-4"><SideButton label="Help" icon={CircleHelp} active={false} onClick={() => showLocked("Help Centre")} /></div>
     </nav>
-    <div className="m-4 rounded-xl border border-white/10 bg-white/[.04] p-4"><div className="text-xs font-semibold">Saved on this device</div><p className="mt-1 text-[11px] leading-5 text-white/50">Account sync is still being connected, so progress currently stays in this browser.</p><button onClick={reset} className="mt-3 text-[11px] font-semibold text-[#ff4054] hover:text-white">Start a fresh website</button></div>
+    <div className="space-y-2 border-t border-white/10 p-3">
+      {canAdmin && <a href={`${basePath}/admin`} className="flex items-center gap-3 rounded-xl bg-[#ef162f]/15 px-4 py-3 text-sm font-semibold text-[#ff6979] hover:bg-[#ef162f] hover:text-white"><ShieldCheck className="h-4 w-4" /><span className="flex-1">Admin / Dev</span><ArrowRight className="h-4 w-4" /></a>}
+      {onSignOut && <button type="button" onClick={onSignOut} className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-white/65 hover:bg-white/[.06] hover:text-white"><LogOut className="h-4 w-4" /><span className="min-w-0 flex-1 truncate">Log out{accountName ? ` · ${accountName}` : ""}</span></button>}
+      <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><div className="text-xs font-semibold">Saved on this device</div><p className="mt-1 text-[11px] leading-5 text-white/50">Account sync is still being connected, so progress currently stays in this browser.</p><button onClick={reset} className="mt-2 text-[11px] font-semibold text-[#ff4054] hover:text-white">Start a fresh website</button></div>
+    </div>
   </aside>;
 }
 
