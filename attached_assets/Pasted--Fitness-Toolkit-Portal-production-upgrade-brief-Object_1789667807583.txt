@@ -1,0 +1,134 @@
+# Fitness Toolkit Portal — production upgrade brief
+
+## Objective
+
+Turn the current Replit prototype into a functioning, automated customer portal for the Fitness Toolkit funnel. Preserve the strongest part of the existing design: the vivid red/charcoal website-building experience. Do not rebuild this as a course portal, CRM or generic AI prompt interface.
+
+The offer is:
+
+- Core: $27 personalised one-page website for a fitness or adjacent wellness business, delivered as files. Hosting, domain registration and installation are **not** included.
+- Bump 1: Extra Pages, extending that same website. Use **two extra pages provisionally**; keep the quantity configurable until the checkout offer is final.
+- Bump 2: undecided. Build an inactive product slot in the entitlement system, but do not show a “to be decided” item to customers or sell it.
+- Upsell 1: $47 Campaign Studio, using the saved business profile to create personalised campaigns. Customers review and send through their own tools; the portal does not send messages.
+- Upsell 2: $97 Meta Ad Launch Pack, using the same offer, audience and brand information. Deliver the agreed ad materials and matching landing-page variation; customers run ads in their own Meta account.
+
+Do not claim any of these products are ready merely because their locked page exists.
+
+## 1. Unify the application first
+
+There are currently two different customer portals. The newer `/website` experience has a red/charcoal sidebar and its own internal Home/Website stages. `/dashboard`, `/extra-pages`, `/campaign-studio`, `/meta-ads` and `/support` use the older shell, styling and navigation.
+
+Create one customer layout, one navigation system and one consistent design language. Keep the vivid red/charcoal direction. Make Home, My Business, My Website, Extra Pages, Campaign Studio, Meta Ads, Help and Account Settings real routes within that layout. “My Business” must contain the reusable business profile, not the user’s avatar and bio. Account Settings remains separate.
+
+Remove irrelevant legacy elements, including the unexplained “Momentum Score 72,” course/lesson terminology and old comeback-product language. Keep the product navigation coherent: locked items may be visible, but must truthfully describe what unlocks them.
+
+Admin is an **owner workspace**, not a second customer portal nested inside the first. Provide a clear “Owner workspace” entry only for authorised staff and a persistent “Back to customer portal” action. Never show an Admin / Dev link to an ordinary member.
+
+## 2. Repair roles and owner access
+
+The current signed-in account is shown as “Member.” Clicking its Admin / Dev link redirects to `/dashboard`. Determine whether the intended owner account has the correct role. The available code appears to bootstrap owner access through `PORTAL_OWNER_EMAIL` when an account is first created, so account creation order and existing users need checking. Do not make a public sign-up an administrator.
+
+Use server-enforced roles: customer, staff and owner. The owner must be able to see and manage every order, entitlement, customer project and generation job. Staff access should be limited to support and review tasks. Customers must never gain admin access by typing an admin URL.
+
+## 3. Make the website generator a real product
+
+Retain the guided journey, but connect every stage to a saved project belonging to the customer’s account:
+
+1. Business essentials: niche, location/country, service, audience, main conversion goal and destination URL.
+2. Brand and evidence: logo, owned photographs, colours, typography preferences, existing website/social links, genuine testimonials, qualifications and approved claims.
+3. Page plan: recommend sections appropriate to the business and objective; let the user add, remove and reorder them. Ask conditional questions only for selected sections. Explain when evidence is missing.
+4. Design direction: retain four clear options—Bold Performance, Editorial Calm, Natural Studio and Modern Clarity—but make these genuinely different full-page systems, not only palette swaps. Include “design it for me” and “use my brand” as helpful paths, not restrictive modes.
+5. Hero direction and review.
+6. Generation, editable preview, approval and delivery.
+
+A studio with classes, a solo PT, an online coach and a yoga instructor should not receive the same page with swapped nouns. Use a controlled set of high-quality section/layout components, chosen according to their offer and assets. Do not fabricate reviews, results, certifications, availability or pricing.
+
+The current ten-stage progress display is useful as presentation, but it must reflect real queued/running/completed work. If image checks, mobile review, link validation or SEO checks have not run, do not say they have. Show the user what is genuinely being created and give a recoverable error state if generation fails.
+
+## 4. Meet the promised visual standard
+
+The first generated page must be attractive enough that the customer could plausibly publish it. Prioritise hero composition, typography, photography, spacing, a clear offer, credible proof and a strong mobile view. Use the previously supplied premium landing pages as quality inspiration, without copying their layouts or assets.
+
+Images need a deliberate path:
+
+- Prefer the customer’s own approved images.
+- Allow replacement, cropping and focal-point adjustment.
+- If no suitable owned image exists, use a properly licensed alternative or a generated image with clear usage rights. Do not ship the current external demonstration photograph as a production asset.
+- Bundle final images with the site, rather than depending on a third-party demo URL.
+
+Check text overflow, poor contrast, missing CTAs, empty sections, broken links, mobile navigation and image loading before offering approval.
+
+## 5. Give the customer meaningful control
+
+The editor currently promises that any text, image or button can be changed, but only a few copy fields are actually editable. Make that promise true for all included sections. Customers should be able to make unlimited manual edits without using AI credits: text, links, images, section order, visibility and basic style choices.
+
+AI changes should be targeted: “make this hero less corporate,” “rewrite the Services section for beginners,” or “try another image direction.” Show exactly what will change before applying it. Record versions so undo, redo and “restore previous version” actually work. A limited number of included AI changes is acceptable, but the allowance must be stored on the server, survive refresh and not decrease for a failed request. A wholly new design direction should be treated separately from a small revision.
+
+Do not advertise “connect your own API for unlimited revisions” until there is a safe, understandable implementation. If offered later, keys must be stored securely server-side and never exposed in the browser.
+
+## 6. Deliver a complete, portable website package
+
+The $27 offer is **website files**, not a live hosted website. Explain that plainly before and after purchase. On approval, produce a ZIP containing the working site, local image/font assets where licensing permits, and a short publishing guide. The preview and exported files must match. Include a simple index page and clear asset structure. Validate the exported package independently, not only inside the portal.
+
+The three existing publishing choices should lead to actual instructions:
+
+- “Guide me through it”: beginner-friendly explanation of what hosting/domain means and a small number of realistic publishing paths.
+- “I already have hosting”: practical instructions by common hosting type and what to ask the host.
+- “Give it to my developer”: a handoff note describing files, links and any setup needed.
+
+Do not imply the customer can paste the HTML into every website platform unchanged. State where migration or rebuilding would be required. No indefinite hosting or installation support is included in the $27 purchase.
+
+## 7. Implement Extra Pages as an extension of the same site
+
+After a valid Bump 1 purchase, let the customer choose two suitable pages from options such as Services/Programmes, About, Classes, Pricing, FAQ or Contact. Recommend the best choices for the business. Ask only the new information required for those pages.
+
+Use the approved core site’s brand, typography, imagery and navigation. Do not regenerate a disconnected second design. The editor should show all purchased pages, allow page-specific edits and keep shared header/footer changes consistent. Export one ZIP containing the complete multi-page site with working internal links and a simple page map. The page count should be a product setting, not hardcoded throughout the app.
+
+Do not release or charge for this bump until a test customer can buy it, see it unlock, create the pages, edit them and download a working multi-page ZIP.
+
+## 8. Connect GHL purchase to portal access
+
+Follow the two-connection pattern discussed from Greg’s portal videos:
+
+**Connection A: purchase → access.** GHL checkout/workflows send successful purchase events to the Replit backend. Match each actual GHL product/price to a stable portal product ID: core website, Extra Pages, Campaign Studio, Meta Ads and the future second bump. A buyer should receive an invitation or sign-in link, and each purchased item unlocks in the same account—even if an upsell arrives after the core order or the buyer creates the account later.
+
+Use product-specific purchase events rather than assuming one checkout event grants everything. GHL’s Order Submitted trigger supports primary, bump and upsell product filtering and its “Allow Multiple” setting matters for repeated entries into the workflow. Verify the exact event and payment status in a test checkout before granting access.
+
+**Connection B: intake → production → delivery.** The portal stores the customer’s brief/assets, creates a generation job, runs the appropriate service/worker, saves the output to that customer’s project, then notifies the customer when it is ready. The customer always returns to the portal for review and download.
+
+Protect the inbound endpoint with a secret or signature, validate the payload, log the event, and make processing idempotent using an event/transaction ID plus product ID. A core product and bump may relate to the same order and must both be granted. Handle duplicates, out-of-order upsells, mismatched emails, failed payments and refunds. Never rely on a browser-only flag to decide whether someone owns a product.
+
+GHL should handle the funnel, checkout and transactional workflows. Replit should own the product experience, generation jobs, files and entitlements.
+
+## 9. Build an owner workspace that can run the business
+
+Minimum useful owner screens:
+
+- **Overview:** real paid orders, activated customers, sites generated, jobs awaiting attention and failures—not vanity course metrics.
+- **Customers:** search a buyer, see their GHL identifiers, purchases, project status and support history.
+- **Orders & access:** product mapping, purchase/refund history, entitlements, manual grant/revoke with reason and audit trail.
+- **Website projects:** inspect the saved brief, chosen style, uploaded assets, revisions, approved output and exported package.
+- **Jobs & quality:** queued/running/failed/completed jobs, error details, safe retry, version used and optional human-review queue.
+- **GHL connection:** connection status, last event, webhook delivery logs, product mapping, test event and clear setup instructions. Secrets belong in Replit Secrets/server configuration, not exposed as plaintext in the UI.
+- **AI usage & limits:** model/provider, approximate cost per job, included revisions, failed jobs and usage outliers.
+- **Support:** customer questions and publishing issues linked to the relevant project.
+- **Settings:** owner/staff access, product status and operational limits.
+
+Keep the first version operational rather than elaborate. Do not carry forward course, lesson and learner admin screens unless they serve this offer.
+
+## 10. Acceptance tests before selling
+
+Demonstrate these flows with test accounts and GHL test purchases:
+
+1. New core buyer receives access, completes a brief, leaves, signs in on another device and resumes.
+2. A solo PT, studio and yoga/wellness business each receive visibly different, complete sites.
+3. Manual editing works without credits; a targeted AI edit changes only its intended area; undo restores the prior version.
+4. A site with customer images exports and opens with working local assets, mobile layout, links and SEO basics.
+5. Core-only buyer cannot use Extra Pages. Bump buyer can create and download the connected pages.
+6. Core, bump and upsells bought in one funnel are all granted correctly, including separate or delayed events.
+7. Duplicate webhook events do not duplicate access/jobs. Failed payment does not unlock. Refund follows the chosen access policy.
+8. A Member cannot see or enter owner screens. The owner can enter the owner workspace and return to the customer view in one click.
+9. A failed generation shows a comprehensible message and can be retried without consuming another paid allowance.
+10. Campaign Studio and Meta Ads remain honestly labelled as unavailable until their real product workflows pass equivalent tests.
+
+Please first report which pieces of the existing Replit app can be retained, which are legacy, and the shortest safe implementation sequence. Do not start by adding more screens on top of the current split portal.
