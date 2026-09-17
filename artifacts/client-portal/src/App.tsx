@@ -34,7 +34,6 @@ import ProjectsPage from "@/pages/projects";
 import ProjectDetailPage from "@/pages/project-detail";
 import ProfileSettingsPage from "@/pages/settings-profile";
 import BillingSettingsPage from "@/pages/settings-billing";
-import AdminHomePage from "@/pages/admin-home";
 import AdminUsersPage from "@/pages/admin-users";
 import AdminUserDetailPage from "@/pages/admin-user-detail";
 import AdminCoursesPage from "@/pages/admin-courses";
@@ -267,7 +266,7 @@ function ClerkProviderWithRoutes() {
             </Route>
 
             <Route path="/admin">
-              <Protected><AdminOnly><AdminHomePage /></AdminOnly></Protected>
+              <Protected><AdminOnly><Redirect to="/admin/ghl" /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/users">
               <Protected><AdminOnly><AdminUsersPage /></AdminOnly></Protected>

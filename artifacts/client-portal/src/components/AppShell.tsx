@@ -51,7 +51,7 @@ const primaryNav: NavItem[] = [
 ];
 
 const adminNav: NavItem[] = [
-  { label: "Admin overview", href: "/admin", icon: ShieldCheck },
+  { label: "GHL fulfilment", href: "/admin/ghl", icon: ShieldCheck },
   { label: "Customers", href: "/admin/users", icon: Users },
   { label: "Courses", href: "/admin/courses", icon: Wrench },
   { label: "Team", href: "/admin/team", icon: BriefcaseBusiness },

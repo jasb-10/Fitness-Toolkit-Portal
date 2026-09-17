@@ -19,6 +19,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(publicRouter);
+router.use(ghlRouter);
 router.use(meRouter);
 router.use(coursesRouter);
 router.use(lessonsRouter);
@@ -31,6 +32,5 @@ router.use(eventsRouter);
 router.use(invoicesRouter);
 router.use(comebackRouter);
 router.use(websiteRouter);
-router.use(ghlRouter);
 
 export default router;

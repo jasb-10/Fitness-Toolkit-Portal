@@ -36,7 +36,6 @@ interface NavItem {
 }
 
 const adminNav: NavItem[] = [
-  { label: "Overview", href: "/admin", icon: LayoutDashboard },
   { label: "GHL fulfilment", href: "/admin/ghl", icon: Webhook },
   { label: "Members", href: "/admin/users", icon: Users },
   { label: "Team", href: "/admin/team", icon: UserCog },
