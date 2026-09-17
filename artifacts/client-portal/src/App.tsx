@@ -42,6 +42,7 @@ import AdminTeamPage from "@/pages/admin-team";
 import AdminSupportPage from "@/pages/admin-support";
 import Upsell1Page from "@/pages/upsell-1";
 import Upsell2Page from "@/pages/upsell-2";
+import ExtraPagesPage from "@/pages/extra-pages";
 import SupportPage from "@/pages/support";
 import NotFound from "@/pages/not-found";
 import ProductPreviewPage from "@/pages/product-preview";
@@ -63,7 +64,7 @@ function HomeRoute() {
   return (
     <>
       <Show when="signed-in">
-        <Redirect to="/comeback" />
+        <Redirect to="/website" />
       </Show>
       <Show when="signed-out">
         <WebsitePrototypePage />
@@ -181,8 +182,11 @@ function ClerkProviderWithRoutes() {
             <Route path="/dashboard">
               <Protected><DashboardPage /></Protected>
             </Route>
+            <Route path="/website">
+              <Protected><WebsitePrototypePage /></Protected>
+            </Route>
             <Route path="/comeback/*?">
-              <Protected><ProductPreviewPage /></Protected>
+              <Redirect to="/website" />
             </Route>
             <Route path="/courses">
               <Protected><CoursesPage /></Protected>
@@ -245,6 +249,15 @@ function ClerkProviderWithRoutes() {
               <Protected><Upsell1Page /></Protected>
             </Route>
             <Route path="/upsell-2">
+              <Protected><Upsell2Page /></Protected>
+            </Route>
+            <Route path="/extra-pages">
+              <Protected><ExtraPagesPage /></Protected>
+            </Route>
+            <Route path="/campaign-studio">
+              <Protected><Upsell1Page /></Protected>
+            </Route>
+            <Route path="/meta-ads">
               <Protected><Upsell2Page /></Protected>
             </Route>
             <Route path="/support">

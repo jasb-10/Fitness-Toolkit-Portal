@@ -4,19 +4,15 @@ import { useClerk, useUser } from "@clerk/react";
 import {
   Activity,
   ArrowUpRight,
-  BookOpen,
   BriefcaseBusiness,
   ChevronDown,
   ChevronUp,
-  GraduationCap,
   Home,
   LifeBuoy,
   LogOut,
   Menu,
-  Rocket,
   Settings,
   ShieldCheck,
-  Sparkles,
   UserCog,
   Users,
   Wrench,
@@ -46,17 +42,16 @@ interface NavItem {
 
 const primaryNav: NavItem[] = [
   { label: "Overview", href: "/dashboard", icon: Home },
-  { label: "Learn", href: "/courses", icon: GraduationCap, note: "Library" },
-  { label: "Projects", href: "/projects", icon: BriefcaseBusiness, note: "Done for you" },
-  { label: "Comeback", href: "/comeback", icon: Sparkles, note: "Campaign builder" },
-  { label: "Growth track", href: "/upsell-1", icon: Rocket, note: "Premium" },
+  { label: "My business", href: "/settings/profile", icon: BriefcaseBusiness },
+  { label: "My website", href: "/website", icon: BriefcaseBusiness },
+  { label: "Extra pages", href: "/extra-pages", icon: BriefcaseBusiness, note: "Bump 1" },
+  { label: "Campaign Studio", href: "/campaign-studio", icon: BriefcaseBusiness, note: "Upsell 1" },
+  { label: "Meta Ads", href: "/meta-ads", icon: BriefcaseBusiness, note: "Upsell 2" },
   { label: "Support", href: "/support", icon: LifeBuoy },
 ];
-
 const adminNavBase: NavItem[] = [
   { label: "Admin overview", href: "/admin", icon: ShieldCheck },
   { label: "Users", href: "/admin/users", icon: Users },
-  { label: "Courses", href: "/admin/courses", icon: BookOpen },
   { label: "Team", href: "/admin/team", icon: UserCog },
 ];
 
