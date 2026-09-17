@@ -198,6 +198,9 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
 Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, or locations.
 Write natural British English, avoid hype, avoid em dashes, and make the call to action match the supplied conversion goal.
 Create only the sections selected in websiteBrief.sections. Use the matching selected section ID exactly once.
+Every selected section must be returned unless its required source information is blank.
+Preserve supplied testimonials verbatim and keep the supplied attribution. Do not paraphrase testimonials.
+For results, credentials and FAQs, use only the exact supplied information. Do not strengthen or generalise it.
 Return JSON only.`,
         },
         {
@@ -235,12 +238,50 @@ Return JSON only.`,
       })),
     }).parse(JSON.parse(content));
 
+    const brief = project.briefData as Record<string, unknown>;
+    const selectedSectionIds = Array.isArray(brief.sections)
+      ? brief.sections.filter((value): value is string => typeof value === "string")
+      : [];
+    const fallbackSections: Record<string, { title: string; body: string } | null> = {
+      services: {
+        title: String(brief.mainService || "Services"),
+        body: String(brief.offer || brief.differentiator || ""),
+      },
+      approach: brief.process ? { title: "How it works", body: String(brief.process) } : null,
+      about: {
+        title: `About ${String(brief.businessName || "the business")}`,
+        body: String(brief.context || brief.differentiator || ""),
+      },
+      results: (brief.credentials || brief.results) ? {
+        title: "Qualifications and evidence",
+        body: [brief.credentials, brief.results].filter(Boolean).map(String).join(" "),
+      } : null,
+      testimonial: brief.testimonialQuote ? {
+        title: "Client testimonial",
+        body: [brief.testimonialQuote, brief.testimonialName].filter(Boolean).map(String).join(" — "),
+      } : null,
+      faq: (brief.faqQuestion && brief.faqAnswer) ? {
+        title: String(brief.faqQuestion),
+        body: String(brief.faqAnswer),
+      } : null,
+      contact: {
+        title: String(brief.goal || "Get in touch"),
+        body: String(brief.offer || ""),
+      },
+    };
+    const completeSections = [...generated.sections];
+    for (const id of selectedSectionIds) {
+      if (!completeSections.some((section) => section.id === id) && fallbackSections[id]) {
+        completeSections.push({ id, ...fallbackSections[id]! });
+      }
+    }
+
     const completedAt = new Date();
     const [updated] = await db.update(websiteProjectsTable).set({
       status: "draft_ready",
       currentStage: "editor",
       styleData: { ...project.styleData, copy: generated.copy },
-      sections: generated.sections,
+      sections: completeSections,
       progressData: [{
         step: "generation",
         status: "completed",
