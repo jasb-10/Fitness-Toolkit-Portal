@@ -5,6 +5,7 @@ import {
   SignUp,
   Show,
   useClerk,
+  useUser,
 } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import {
@@ -76,6 +77,7 @@ function HomeRoute() {
 
 function WebsiteBuilderRoute() {
   const { signOut } = useClerk();
+  const { user: clerkUser } = useUser();
   const { data: me } = useGetMe({
     query: { refetchOnMount: "always" },
   });
@@ -83,6 +85,7 @@ function WebsiteBuilderRoute() {
   return (
     <WebsitePrototypePage
       accountName={me?.user.name ?? "Your account"}
+      accountEmail={me?.user.email ?? clerkUser?.primaryEmailAddress?.emailAddress}
       accountRole={me?.user.role}
       onSignOut={() => void signOut()}
     />

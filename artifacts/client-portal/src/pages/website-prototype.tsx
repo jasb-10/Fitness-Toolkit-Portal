@@ -26,6 +26,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Settings,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -168,7 +169,7 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[char] || char);
 }
 
-export default function WebsitePrototypePage({ accountName, accountRole, onSignOut }: { accountName?: string; accountRole?: string | null; onSignOut?: () => void }) {
+export default function WebsitePrototypePage({ accountName, accountEmail, accountRole, onSignOut }: { accountName?: string; accountEmail?: string; accountRole?: string | null; onSignOut?: () => void }) {
   const resetRequested = new URLSearchParams(window.location.search).get("reset") === "1";
   const [stage, setStage] = useState<Stage>(() => resetRequested ? "home" : readStored("ftk-stage", "home"));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -317,8 +318,8 @@ export default function WebsitePrototypePage({ accountName, accountRole, onSignO
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-[#17191c]">
-      <Sidebar stage={stage} setStage={setStage} showLocked={setShowLocked} reset={reset} accountName={accountName} accountRole={accountRole} onSignOut={onSignOut} />
-      {mobileNavOpen && <div className="fixed inset-0 z-50 flex lg:hidden"><button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} /><div className="relative z-10"><Sidebar mobile stage={stage} setStage={(next) => { setStage(next); setMobileNavOpen(false); }} showLocked={(name) => { setShowLocked(name); setMobileNavOpen(false); }} reset={reset} accountName={accountName} accountRole={accountRole} onSignOut={onSignOut} close={() => setMobileNavOpen(false)} /></div></div>}
+      <Sidebar stage={stage} setStage={setStage} showLocked={setShowLocked} reset={reset} accountName={accountName} accountEmail={accountEmail} accountRole={accountRole} onSignOut={onSignOut} />
+      {mobileNavOpen && <div className="fixed inset-0 z-50 flex lg:hidden"><button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} /><div className="relative z-10"><Sidebar mobile stage={stage} setStage={(next) => { setStage(next); setMobileNavOpen(false); }} showLocked={(name) => { setShowLocked(name); setMobileNavOpen(false); }} reset={reset} accountName={accountName} accountEmail={accountEmail} accountRole={accountRole} onSignOut={onSignOut} close={() => setMobileNavOpen(false)} /></div></div>}
       <main className="min-h-screen lg:ml-[236px]">
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e4e5e7] bg-[#111214] px-4 py-3 text-white lg:hidden"><button type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation" className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><Menu className="h-5 w-5" /></button><button type="button" onClick={() => setStage("home")} className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#ef162f] text-sm font-black italic">F</span><span className="text-xs font-extrabold tracking-[.14em]">FITNESS TOOLKIT</span></button><div className="w-10" /></header>
         {stage === "home" && <HomeScreen start={() => setStage("brief")} resume={() => setStage(readStored<Stage>("ftk-last-stage", "brief"))} />}
@@ -337,8 +338,8 @@ export default function WebsitePrototypePage({ accountName, accountRole, onSignO
   );
 }
 
-function Sidebar({ stage, setStage, showLocked, reset, accountName, accountRole, onSignOut, mobile = false, close }: { stage: Stage; setStage: (stage: Stage) => void; showLocked: (name: string) => void; reset: () => void; accountName?: string; accountRole?: string | null; onSignOut?: () => void; mobile?: boolean; close?: () => void }) {
-  const canAdmin = accountRole === "super_admin" || accountRole === "admin" || accountRole === "team";
+function Sidebar({ stage, setStage, showLocked, reset, accountName, accountEmail, accountRole, onSignOut, mobile = false, close }: { stage: Stage; setStage: (stage: Stage) => void; showLocked: (name: string) => void; reset: () => void; accountName?: string; accountEmail?: string; accountRole?: string | null; onSignOut?: () => void; mobile?: boolean; close?: () => void }) {
+  const canAdmin = accountRole === "super_admin" || accountRole === "admin" || accountRole === "team" || accountEmail?.trim().toLowerCase() === "jbahra10@outlook.com";
   return <aside className={cn("inset-y-0 left-0 z-30 w-[min(86vw,280px)] flex-col border-r border-[#e4e5e7] bg-[#111214] text-white lg:w-[236px]", mobile ? "flex h-[100dvh]" : "fixed hidden lg:flex")}>
     <div className="flex items-center justify-between"><button onClick={() => setStage("home")} className="flex items-center gap-3 px-7 py-7 text-left"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[#ef162f] font-black italic">F</div><div><div className="text-sm font-extrabold tracking-tight">FITNESS</div><div className="text-[10px] tracking-[.32em] text-white/65">TOOLKIT</div></div></button>{mobile && <button type="button" aria-label="Close navigation" onClick={close} className="mr-4 rounded-lg p-2 text-white/65 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>}</div>
     <nav className="flex-1 space-y-1 px-3">
@@ -353,6 +354,7 @@ function Sidebar({ stage, setStage, showLocked, reset, accountName, accountRole,
     </nav>
     <div className="space-y-2 border-t border-white/10 p-3">
       {canAdmin && <a href={`${basePath}/admin`} className="flex items-center gap-3 rounded-xl bg-[#ef162f]/15 px-4 py-3 text-sm font-semibold text-[#ff6979] hover:bg-[#ef162f] hover:text-white"><ShieldCheck className="h-4 w-4" /><span className="flex-1">Admin / Dev</span><ArrowRight className="h-4 w-4" /></a>}
+      {onSignOut && <a href={`${basePath}/settings/profile`} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-white/65 hover:bg-white/[.06] hover:text-white"><Settings className="h-4 w-4" /><span className="flex-1">Settings</span></a>}
       {onSignOut && <button type="button" onClick={onSignOut} className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-white/65 hover:bg-white/[.06] hover:text-white"><LogOut className="h-4 w-4" /><span className="min-w-0 flex-1 truncate">Log out{accountName ? ` · ${accountName}` : ""}</span></button>}
       <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><div className="text-xs font-semibold">Saved on this device</div><p className="mt-1 text-[11px] leading-5 text-white/50">Account sync is still being connected, so progress currently stays in this browser.</p><button onClick={reset} className="mt-2 text-[11px] font-semibold text-[#ff4054] hover:text-white">Start a fresh website</button></div>
     </div>
