@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Fitness Toolkit Portal"
+description = "A member portal for fitness business owners to complete practical courses, manage growth projects, and access campaign-building tools from one focused workspace."
+version = "1.0.0"
+id = "artifacts/client-portal"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25516
+
+[services.development]
+run = "pnpm --filter @workspace/client-portal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/client-portal", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/client-portal/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25516"
+BASE_PATH = "/"

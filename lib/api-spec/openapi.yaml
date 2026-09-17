@@ -3,34 +3,1778 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Client Portal API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: me
+  - name: courses
+  - name: chapters
+  - name: lessons
+  - name: progress
+  - name: dfy
+  - name: admin
+  - name: support
+  - name: storage
+  - name: events
 paths:
+  /events:
+    post:
+      tags: [events]
+      operationId: trackEvent
+      summary: Record one or more user activity events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/EventInput"
+                - type: object
+                  required: [events]
+                  properties:
+                    events:
+                      type: array
+                      items: { $ref: "#/components/schemas/EventInput" }
+      responses:
+        "204": { description: Recorded }
+
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get current authenticated user with role and progress summary
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeResponse" }
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Update profile (name, avatar, bio)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMeBody" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /me/billing:
+    get:
+      operationId: getBilling
+      tags: [me]
+      responses:
+        "200":
+          description: Billing settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Billing" }
+    patch:
+      operationId: updateBilling
+      tags: [me]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateBillingBody" }
+      responses:
+        "200":
+          description: Updated billing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Billing" }
+
+  /me/invoices:
+    get:
+      operationId: listMyInvoices
+      tags: [me]
+      responses:
+        "200":
+          description: Unified invoice list (Stripe + local)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceListResponse" }
+
+  /me/invoices/{invoiceId}/download:
+    parameters:
+      - { name: invoiceId, in: path, required: true, schema: { type: string } }
+      - { name: source, in: query, required: false, schema: { type: string, enum: [stripe, local] } }
+    get:
+      operationId: downloadInvoice
+      tags: [me]
+      responses:
+        "200":
+          description: Invoice PDF stream
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "302": { description: Redirect to Stripe-hosted PDF }
+        "404": { description: Not found }
+
+  /admin/support/articles/bulk-generate:
+    post:
+      operationId: adminBulkGenerateSupportArticles
+      tags: [admin]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxArticles: { type: integer, minimum: 1, maximum: 40 }
+                onlyMissing: { type: boolean }
+                concurrency: { type: integer, minimum: 1, maximum: 6 }
+      responses:
+        "200":
+          description: Bulk generation summary
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: object
+                required: [planned, created, skipped, failed, categories, articles]
+                properties:
+                  planned: { type: integer }
+                  created: { type: integer }
+                  skipped: { type: integer }
+                  failed: { type: integer }
+                  categories:
+                    type: array
+                    items: { type: string }
+                  articles:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, kind, slug]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        category: { type: string, nullable: true }
+                        kind: { type: string }
+                        slug: { type: string }
+
+  /admin/users/{userId}/stripe-customer:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string } }
+    put:
+      operationId: adminSetUserStripeCustomer
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stripeCustomerId: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stripeCustomerId]
+                properties:
+                  stripeCustomerId: { type: string, nullable: true }
+
+  /admin/company:
+    get:
+      operationId: adminGetCompany
+      tags: [admin]
+      responses:
+        "200":
+          description: Company branding settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompanySettingsResponse" }
+    put:
+      operationId: adminUpdateCompany
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCompanySettingsBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompanySettingsResponse" }
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [me]
+      summary: Welcome video, course progress overview, and recent activity
+      responses:
+        "200":
+          description: Dashboard payload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+
+  /courses:
+    get:
+      operationId: listCourses
+      tags: [courses]
+      responses:
+        "200":
+          description: All courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CourseSummary" }
+    post:
+      operationId: createCourse
+      tags: [courses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCourseBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+
+  /courses/{courseId}:
+    parameters:
+      - { name: courseId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getCourse
+      tags: [courses]
+      summary: Full course tree (chapters + lessons) with user progress
+      responses:
+        "200":
+          description: Course detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseDetail" }
+    patch:
+      operationId: updateCourse
+      tags: [courses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCourseBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+    delete:
+      operationId: deleteCourse
+      tags: [courses]
+      responses:
+        "204": { description: Deleted }
+
+  /courses/{courseId}/chapters:
+    parameters:
+      - { name: courseId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: createChapter
+      tags: [chapters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateChapterBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Chapter" }
+
+  /chapters/{chapterId}:
+    parameters:
+      - { name: chapterId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: updateChapter
+      tags: [chapters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateChapterBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Chapter" }
+    delete:
+      operationId: deleteChapter
+      tags: [chapters]
+      responses:
+        "204": { description: Deleted }
+
+  /chapters/{chapterId}/lessons:
+    parameters:
+      - { name: chapterId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: createLesson
+      tags: [lessons]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateLessonBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+
+  /lessons/{lessonId}:
+    parameters:
+      - { name: lessonId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getLesson
+      tags: [lessons]
+      summary: Full lesson with templates, notes, resources
+      responses:
+        "200":
+          description: Lesson detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LessonDetail" }
+    patch:
+      operationId: updateLesson
+      tags: [lessons]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateLessonBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+    delete:
+      operationId: deleteLesson
+      tags: [lessons]
+      responses:
+        "204": { description: Deleted }
+
+  /lessons/{lessonId}/complete:
+    parameters:
+      - { name: lessonId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: markLessonComplete
+      tags: [progress]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteLessonBody" }
+      responses:
+        "200":
+          description: Updated progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LessonProgress" }
+
+  /dfy/projects:
+    get:
+      operationId: listMyProjects
+      tags: [dfy]
+      summary: Done-for-you projects visible to current user
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DfyProject" }
+    post:
+      operationId: createProject
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProjectBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DfyProject" }
+
+  /dfy/projects/{projectId}:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getProject
+      tags: [dfy]
+      responses:
+        "200":
+          description: Project detail with updates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DfyProjectDetail" }
+    patch:
+      operationId: updateProject
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProjectBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DfyProject" }
+
+  /dfy/projects/{projectId}/updates:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: addProjectUpdate
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProjectUpdateBody" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectUpdate" }
+
+  /dfy/projects/{projectId}/milestones:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: addProjectMilestone
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMilestoneBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectMilestone" }
+
+  /dfy/milestones/{milestoneId}:
+    parameters:
+      - { name: milestoneId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: updateProjectMilestone
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMilestoneBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectMilestone" }
+    delete:
+      operationId: deleteProjectMilestone
+      tags: [dfy]
+      responses:
+        "204": { description: Deleted }
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: All users with progress and role (admin/team only)
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminUserRow" }
+    post:
+      operationId: adminCreateUser
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCreateUserBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /admin/users/{userId}:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      responses:
+        "200":
+          description: Full user detail with enrollments and activity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUserDetail" }
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminUpdateUserBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin]
+      responses:
+        "204": { description: Deleted }
+
+  /admin/users/{userId}/activity:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string } }
+      - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      - { name: action, in: query, schema: { type: string } }
+    get:
+      operationId: adminGetUserActivity
+      tags: [admin]
+      responses:
+        "200":
+          description: Paginated activity log
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityPage" }
+
+  /admin/users/{userId}/reset-password:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: adminResetPassword
+      tags: [admin]
+      responses:
+        "200":
+          description: Reset link generated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResetPasswordResponse" }
+
+  /admin/users/{userId}/access:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string } }
+    put:
+      operationId: adminSetUserAccess
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetUserAccessBody" }
+      responses:
+        "200":
+          description: Updated access
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CourseAccess" }
+
+  /admin/team:
+    get:
+      operationId: adminListTeam
+      tags: [admin]
+      responses:
+        "200":
+          description: Team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+    post:
+      operationId: adminInviteTeamMember
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteTeamMemberBody" }
+      responses:
+        "201":
+          description: Invited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Platform-wide stats (users, completions, recent signups)
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminStats" }
+
+  /support/articles:
+    get:
+      operationId: listSupportArticles
+      tags: [support]
+      responses:
+        "200":
+          description: Articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupportArticle" }
+
+  /support/articles/{slug}:
+    get:
+      operationId: getSupportArticle
+      tags: [support]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Article
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportArticle" }
+
+  /support/conversations:
+    get:
+      operationId: listSupportConversations
+      tags: [support]
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupportConversation" }
+    post:
+      operationId: createSupportConversation
+      tags: [support]
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportConversation" }
+
+  /support/conversations/{conversationId}/messages:
+    get:
+      operationId: listSupportMessages
+      tags: [support]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupportMessage" }
+    post:
+      operationId: sendSupportMessage
+      tags: [support]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendSupportMessageBody" }
+      responses:
+        "200":
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, assistant]
+                properties:
+                  user: { $ref: "#/components/schemas/SupportMessage" }
+                  assistant: { $ref: "#/components/schemas/SupportMessage" }
+
+  /support/refund-requests:
+    get:
+      operationId: listMyRefundRequests
+      tags: [support]
+      responses:
+        "200":
+          description: My refund requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RefundRequest" }
+    post:
+      operationId: createRefundRequest
+      tags: [support]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRefundRequestBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefundRequest" }
+
+  /admin/support/articles:
+    get:
+      operationId: adminListSupportArticles
+      tags: [admin]
+      responses:
+        "200":
+          description: Articles (all)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupportArticle" }
+    post:
+      operationId: adminCreateSupportArticle
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpsertSupportArticleBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportArticle" }
+
+  /admin/support/articles/{articleId}:
+    patch:
+      operationId: adminUpdateSupportArticle
+      tags: [admin]
+      parameters:
+        - in: path
+          name: articleId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpsertSupportArticleBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportArticle" }
+    delete:
+      operationId: adminDeleteSupportArticle
+      tags: [admin]
+      parameters:
+        - in: path
+          name: articleId
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+
+  /admin/support/articles/generate:
+    post:
+      operationId: adminGenerateSupportArticle
+      tags: [admin]
+      summary: AI-generate an article or FAQ from the master class + knowledge base
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerateArticleBody" }
+      responses:
+        "200":
+          description: Generated draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportArticle" }
+
+  /admin/support/kb:
+    get:
+      operationId: adminListKbSources
+      tags: [admin]
+      responses:
+        "200":
+          description: KB sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/KbSource" }
+    post:
+      operationId: adminCreateKbSource
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateKbSourceBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KbSource" }
+
+  /admin/support/kb/{sourceId}:
+    delete:
+      operationId: adminDeleteKbSource
+      tags: [admin]
+      parameters:
+        - in: path
+          name: sourceId
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+
+  /admin/support/refund-requests:
+    get:
+      operationId: adminListRefundRequests
+      tags: [admin]
+      responses:
+        "200":
+          description: All refund requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RefundRequest" }
+
+  /admin/support/refund-requests/{refundId}:
+    patch:
+      operationId: adminUpdateRefundRequest
+      tags: [admin]
+      parameters:
+        - in: path
+          name: refundId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateRefundRequestBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefundRequest" }
+
+  /admin/support/stripe-status:
+    get:
+      operationId: adminGetStripeStatus
+      tags: [admin]
+      responses:
+        "200":
+          description: Stripe status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StripeStatus" }
+
+  /admin/support/resend-status:
+    get:
+      operationId: adminGetResendStatus
+      tags: [admin]
+      responses:
+        "200":
+          description: Resend status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResendStatus" }
+
+  /admin/support/settings:
+    get:
+      operationId: adminGetSupportSettings
+      tags: [admin]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportSettings" }
+    put:
+      operationId: adminUpdateSupportSettings
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportSettings" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportSettings" }
+
 components:
   schemas:
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1 }
+        contentType: { type: string, minLength: 1 }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        metadata: { $ref: "#/components/schemas/UploadUrlRequest" }
+
     HealthStatus:
       type: object
+      required: [status]
       properties:
+        status: { type: string }
+
+    Role:
+      type: string
+      enum: [super_admin, admin, team, student]
+
+    User:
+      type: object
+      required: [id, email, name, role, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        role: { $ref: "#/components/schemas/Role" }
+        createdAt: { type: string, format: date-time }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+
+    MeResponse:
+      type: object
+      required: [user, totalLessons, completedLessons]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        totalLessons: { type: integer }
+        completedLessons: { type: integer }
+
+    UpdateMeBody:
+      type: object
+      properties:
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+
+    Billing:
+      type: object
+      required: [plan, status]
+      properties:
+        plan: { type: string }
+        status: { type: string }
+        billingEmail: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        addressLine1: { type: string, nullable: true }
+        addressLine2: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        postalCode: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        nextInvoiceDate: { type: string, format: date-time, nullable: true }
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/Invoice" }
+
+    Invoice:
+      type: object
+      required: [id, date, amount, status]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date-time }
+        amount: { type: string }
+        status: { type: string }
+        description: { type: string }
+
+    UnifiedInvoice:
+      type: object
+      required: [id, source, date, amount, currency, status, description]
+      properties:
+        id: { type: string }
+        source: { type: string, enum: [stripe, local] }
+        number: { type: string, nullable: true }
+        date: { type: string, format: date-time }
+        amount: { type: number }
+        currency: { type: string }
+        status: { type: string }
+        description: { type: string }
+        hostedUrl: { type: string, nullable: true }
+        pdfUrl: { type: string, nullable: true }
+
+    InvoiceListResponse:
+      type: object
+      required: [stripeConfigured, items]
+      properties:
+        stripeConfigured: { type: boolean }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/UnifiedInvoice" }
+
+    CompanySettings:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        legalName: { type: string, nullable: true }
+        supportEmail: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        taxId: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        addressLine1: { type: string, nullable: true }
+        addressLine2: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        postalCode: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        invoiceFooter: { type: string, nullable: true }
+
+    CompanySettingsResponse:
+      type: object
+      required: [settings, stripeConfigured]
+      properties:
+        settings: { $ref: "#/components/schemas/CompanySettings" }
+        stripeConfigured: { type: boolean }
+
+    UpdateCompanySettingsBody:
+      allOf:
+        - $ref: "#/components/schemas/CompanySettings"
+
+    UpdateBillingBody:
+      type: object
+      properties:
+        billingEmail: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        addressLine1: { type: string, nullable: true }
+        addressLine2: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        postalCode: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+
+    Dashboard:
+      type: object
+      required: [welcomeVideoUrl, courses, recentLessons, stats]
+      properties:
+        welcomeVideoUrl: { type: string }
+        welcomeMessage: { type: string }
+        courses:
+          type: array
+          items: { $ref: "#/components/schemas/CourseProgress" }
+        recentLessons:
+          type: array
+          items: { $ref: "#/components/schemas/RecentLesson" }
+        activeProjects:
+          type: array
+          items: { $ref: "#/components/schemas/DfyProject" }
+        stats: { $ref: "#/components/schemas/UserStats" }
+
+    UserStats:
+      type: object
+      required: [totalLessons, completedLessons, completionPct, streakDays, hoursWatched]
+      properties:
+        totalLessons: { type: integer }
+        completedLessons: { type: integer }
+        completionPct: { type: number }
+        streakDays: { type: integer }
+        hoursWatched: { type: number }
+
+    CourseProgress:
+      type: object
+      required: [id, title, completedLessons, totalLessons, completionPct]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        coverImageUrl: { type: string, nullable: true }
+        completedLessons: { type: integer }
+        totalLessons: { type: integer }
+        completionPct: { type: number }
+
+    RecentLesson:
+      type: object
+      required: [lessonId, lessonTitle, courseId, courseTitle, lastAccessedAt]
+      properties:
+        lessonId: { type: string }
+        lessonTitle: { type: string }
+        courseId: { type: string }
+        courseTitle: { type: string }
+        lastAccessedAt: { type: string, format: date-time }
+
+    CourseSummary:
+      type: object
+      required: [id, title, totalLessons]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        coverImageUrl: { type: string, nullable: true }
+        totalLessons: { type: integer }
+        published: { type: boolean }
+
+    Course:
+      type: object
+      required: [id, title, published, createdAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        coverImageUrl: { type: string, nullable: true }
+        published: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    CourseDetail:
+      allOf:
+        - $ref: "#/components/schemas/Course"
+        - type: object
+          required: [chapters, completedLessonIds]
+          properties:
+            chapters:
+              type: array
+              items: { $ref: "#/components/schemas/ChapterWithLessons" }
+            completedLessonIds:
+              type: array
+              items: { type: string }
+
+    CreateCourseBody:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        coverImageUrl: { type: string, nullable: true }
+
+    UpdateCourseBody:
+      type: object
+      properties:
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        coverImageUrl: { type: string, nullable: true }
+        published: { type: boolean }
+
+    Chapter:
+      type: object
+      required: [id, courseId, title, position]
+      properties:
+        id: { type: string }
+        courseId: { type: string }
+        title: { type: string }
+        position: { type: integer }
+
+    ChapterWithLessons:
+      allOf:
+        - $ref: "#/components/schemas/Chapter"
+        - type: object
+          required: [lessons]
+          properties:
+            lessons:
+              type: array
+              items: { $ref: "#/components/schemas/Lesson" }
+
+    CreateChapterBody:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+
+    UpdateChapterBody:
+      type: object
+      properties:
+        title: { type: string }
+        position: { type: integer }
+
+    Lesson:
+      type: object
+      required: [id, chapterId, title, position, lessonType]
+      properties:
+        id: { type: string }
+        chapterId: { type: string }
+        title: { type: string }
+        position: { type: integer }
+        lessonType:
+          type: string
+          enum: [video, text]
+        videoUrl: { type: string, nullable: true }
+        durationMinutes: { type: integer, nullable: true }
+        published: { type: boolean }
+
+    LessonDetail:
+      allOf:
+        - $ref: "#/components/schemas/Lesson"
+        - type: object
+          required: [notes, attachments, courseId, courseTitle, completed]
+          properties:
+            courseId: { type: string }
+            courseTitle: { type: string }
+            notes: { type: string, nullable: true }
+            attachments:
+              type: array
+              items: { $ref: "#/components/schemas/Attachment" }
+            completed: { type: boolean }
+
+    Attachment:
+      type: object
+      required: [id, label, url, type]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        url: { type: string }
+        type:
+          type: string
+          enum: [link, file]
+
+    CreateLessonBody:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        lessonType:
+          type: string
+          enum: [video, text]
+        videoUrl: { type: string, nullable: true }
+        durationMinutes: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }
+
+    UpdateLessonBody:
+      type: object
+      properties:
+        title: { type: string }
+        lessonType:
+          type: string
+          enum: [video, text]
+        videoUrl: { type: string, nullable: true }
+        durationMinutes: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }
+        position: { type: integer }
+        published: { type: boolean }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AttachmentInput" }
+
+    AttachmentInput:
+      type: object
+      required: [label, url, type]
+      properties:
+        label: { type: string }
+        url: { type: string }
+        type:
+          type: string
+          enum: [link, file]
+
+    CompleteLessonBody:
+      type: object
+      required: [completed]
+      properties:
+        completed: { type: boolean }
+
+    LessonProgress:
+      type: object
+      required: [lessonId, completed]
+      properties:
+        lessonId: { type: string }
+        completed: { type: boolean }
+        completedAt: { type: string, format: date-time, nullable: true }
+
+    DfyProject:
+      type: object
+      required: [id, clientUserId, title, status, createdAt]
+      properties:
+        id: { type: string }
+        clientUserId: { type: string }
+        clientName: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
         status:
           type: string
-      required:
-        - status
+          enum: [discovery, in_progress, review, delivered, on_hold]
+        progressPct: { type: integer }
+        nextMilestone: { type: string, nullable: true }
+        nextMilestoneDate: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
 
+    DfyProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/DfyProject"
+        - type: object
+          required: [updates, milestones]
+          properties:
+            updates:
+              type: array
+              items: { $ref: "#/components/schemas/ProjectUpdate" }
+            milestones:
+              type: array
+              items: { $ref: "#/components/schemas/ProjectMilestone" }
+
+    ProjectUpdate:
+      type: object
+      required: [id, projectId, authorName, body, createdAt]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        authorName: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ProjectMilestone:
+      type: object
+      required: [id, title, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status:
+          type: string
+          enum: [pending, done]
+        dueDate: { type: string, format: date-time, nullable: true }
+
+    CreateMilestoneBody:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        dueDate: { type: string, format: date-time, nullable: true }
+
+    UpdateMilestoneBody:
+      type: object
+      properties:
+        title: { type: string }
+        status: { type: string, enum: [pending, done] }
+        dueDate: { type: string, format: date-time, nullable: true }
+
+    CreateProjectBody:
+      type: object
+      required: [title, clientUserId]
+      properties:
+        title: { type: string }
+        description: { type: string, nullable: true }
+        clientUserId: { type: string }
+        status:
+          type: string
+          enum: [discovery, in_progress, review, delivered, on_hold]
+
+    UpdateProjectBody:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [discovery, in_progress, review, delivered, on_hold]
+        progressPct: { type: integer }
+        nextMilestone: { type: string, nullable: true }
+        nextMilestoneDate: { type: string, format: date-time, nullable: true }
+
+    CreateProjectUpdateBody:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+
+    AdminUserRow:
+      type: object
+      required: [id, name, email, role, createdAt, completionPct, lessonsCompleted]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        role: { $ref: "#/components/schemas/Role" }
+        createdAt: { type: string, format: date-time }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        completionPct: { type: number }
+        lessonsCompleted: { type: integer }
+        coursesEnrolled: { type: integer }
+
+    AdminUserDetail:
+      type: object
+      required: [user, courseAccess, recentActivity]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        courseAccess:
+          type: array
+          items: { $ref: "#/components/schemas/CourseAccess" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityEntry" }
+        completionPct: { type: number }
+        totalLessons: { type: integer }
+        completedLessons: { type: integer }
+        activitySummary: { $ref: "#/components/schemas/ActivitySummary" }
+
+    CourseAccess:
+      type: object
+      required: [courseId, courseTitle, hasAccess, completedLessons, totalLessons]
+      properties:
+        courseId: { type: string }
+        courseTitle: { type: string }
+        hasAccess: { type: boolean }
+        completedLessons: { type: integer }
+        totalLessons: { type: integer }
+
+    ActivityEntry:
+      type: object
+      required: [id, action, target, createdAt]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        target: { type: string }
+        path: { type: string, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt: { type: string, format: date-time }
+
+    ActivityPage:
+      type: object
+      required: [total, items]
+      properties:
+        total: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityEntry" }
+
+    ActivitySummary:
+      type: object
+      required:
+        - totalEvents
+        - lessonsCompleted
+        - totalLessons
+        - completionPct
+        - downloads
+        - videoCompletions
+        - refundRequests
+        - recentActions
+      properties:
+        totalEvents: { type: integer }
+        lessonsCompleted: { type: integer }
+        totalLessons: { type: integer }
+        completionPct: { type: integer }
+        downloads: { type: integer }
+        videoCompletions: { type: integer }
+        refundRequests: { type: integer }
+        firstSeenAt: { type: string, format: date-time, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        furthestChapter:
+          type: object
+          nullable: true
+          required: [courseTitle, chapterTitle, chapterIndex]
+          properties:
+            courseTitle: { type: string }
+            chapterTitle: { type: string }
+            chapterIndex: { type: integer }
+        recentActions:
+          type: array
+          items:
+            type: object
+            required: [action, target, at]
+            properties:
+              action: { type: string }
+              target: { type: string }
+              at: { type: string, format: date-time }
+
+    EventInput:
+      type: object
+      required: [action, target]
+      properties:
+        action:
+          type: string
+          enum:
+            - viewed_page
+            - downloaded_attachment
+            - opened_link
+            - started_video
+            - video_progress
+            - completed_video
+            - opened_support_chat
+            - downloaded_invoice
+        target: { type: string }
+        path: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AdminCreateUserBody:
+      type: object
+      required: [email, name]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+
+    AdminUpdateUserBody:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+
+    SetUserAccessBody:
+      type: object
+      required: [courseIds]
+      properties:
+        courseIds:
+          type: array
+          items: { type: string }
+
+    InviteTeamMemberBody:
+      type: object
+      required: [email, name, role]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+
+    ResetPasswordResponse:
+      type: object
+      required: [resetUrl]
+      properties:
+        resetUrl: { type: string }
+        message: { type: string }
+
+    AdminStats:
+      type: object
+      required: [totalUsers, totalCourses, totalLessons, activeProjects, avgCompletionPct]
+      properties:
+        totalUsers: { type: integer }
+        totalCourses: { type: integer }
+        totalLessons: { type: integer }
+        activeProjects: { type: integer }
+        avgCompletionPct: { type: number }
+        recentSignups:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+
+    SupportArticle:
+      type: object
+      required: [id, title, slug, body, kind, published, aiGenerated, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        body: { type: string }
+        kind: { type: string, enum: [article, faq] }
+        category: { type: string, nullable: true }
+        published: { type: boolean }
+        aiGenerated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    UpsertSupportArticleBody:
+      type: object
+      required: [title, body, kind]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        kind: { type: string, enum: [article, faq] }
+        category: { type: string, nullable: true }
+        published: { type: boolean }
+
+    GenerateArticleBody:
+      type: object
+      required: [topic, kind]
+      properties:
+        topic: { type: string }
+        kind: { type: string, enum: [article, faq] }
+
+    KbSource:
+      type: object
+      required: [id, kind, title, content, createdAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [url, document, manual] }
+        title: { type: string }
+        url: { type: string, nullable: true }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    CreateKbSourceBody:
+      type: object
+      required: [kind, title]
+      properties:
+        kind: { type: string, enum: [url, document, manual] }
+        title: { type: string }
+        url: { type: string, nullable: true }
+        content: { type: string, nullable: true }
+
+    SupportConversation:
+      type: object
+      required: [id, title, createdAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    SupportMessage:
+      type: object
+      required: [id, conversationId, role, content, createdAt]
+      properties:
+        id: { type: string }
+        conversationId: { type: string }
+        role: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    SendSupportMessageBody:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+
+    RefundRequest:
+      type: object
+      required: [id, userId, reason, status, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        userName: { type: string }
+        userEmail: { type: string }
+        amount: { type: string, nullable: true }
+        reason: { type: string }
+        status: { type: string, enum: [pending, approved, denied, processed, failed] }
+        decisionNote: { type: string, nullable: true }
+        stripeChargeId: { type: string, nullable: true }
+        stripeRefundId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+
+    CreateRefundRequestBody:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+        amount: { type: string, nullable: true }
+        stripeChargeId: { type: string, nullable: true }
+
+    UpdateRefundRequestBody:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [pending, approved, denied, processed, failed] }
+        decisionNote: { type: string, nullable: true }
+        stripeRefundId: { type: string, nullable: true }
+        stripeChargeId: { type: string, nullable: true }
+        executeStripeRefund: { type: boolean }
+
+    StripeStatus:
+      type: object
+      required: [configured]
+      properties:
+        configured: { type: boolean }
+        accountEmail: { type: string, nullable: true }
+        livemode: { type: boolean, nullable: true }
+        error: { type: string, nullable: true }
+
+    ResendStatus:
+      type: object
+      required: [configured]
+      properties:
+        configured: { type: boolean }
+        fromEmail: { type: string, nullable: true }
+        error: { type: string, nullable: true }
+
+    SupportSettings:
+      type: object
+      required: [refundPolicy, autoApproveUnderAmount, supportSystemPrompt]
+      properties:
+        refundPolicy: { type: string }
+        autoApproveUnderAmount: { type: number, nullable: true }
+        supportSystemPrompt: { type: string }
+        refundDaysWindow: { type: integer, nullable: true }
