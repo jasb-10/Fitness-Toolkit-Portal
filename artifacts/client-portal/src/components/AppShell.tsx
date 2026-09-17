@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Users,
   Wrench,
   X,
 } from "lucide-react";
@@ -47,6 +48,14 @@ const primaryNav: NavItem[] = [
   { label: "Home", href: "/dashboard", icon: Home },
   { label: "My Business", href: "/business", icon: BriefcaseBusiness },
   { label: "My Website", href: "/website", icon: Monitor },
+];
+
+const adminNav: NavItem[] = [
+  { label: "Admin overview", href: "/admin", icon: ShieldCheck },
+  { label: "Customers", href: "/admin/users", icon: Users },
+  { label: "Courses", href: "/admin/courses", icon: Wrench },
+  { label: "Team", href: "/admin/team", icon: BriefcaseBusiness },
+  { label: "Support", href: "/admin/support", icon: CircleHelp },
 ];
 
 const upgradesNav: NavItem[] = [
@@ -119,6 +128,15 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
         <div className="space-y-1">
           {primaryNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
         </div>
+
+        {showAdmin && (
+          <>
+            <div className="px-3 pb-2 pt-6 text-[9px] font-bold uppercase tracking-[.24em] text-primary">Admin workspace</div>
+            <div className="space-y-1 rounded-2xl border border-primary/20 bg-primary/[.06] p-1.5">
+              {adminNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
+            </div>
+          </>
+        )}
         
         <div className="px-3 pb-2 pt-6 text-[9px] font-bold uppercase tracking-[.24em] text-sidebar-foreground/35">Your upgrades</div>
         <div className="space-y-1">
@@ -136,14 +154,6 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
       </nav>
 
       <div className="space-y-2 border-t border-white/10 p-3">
-        {showAdmin && (
-          <Link href="/admin" onClick={close} className="flex items-center gap-3 rounded-xl bg-primary/15 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-colors">
-            <ShieldCheck className="h-4 w-4" />
-            <span className="flex-1">Admin / Dev</span>
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-        
         <Link href="/settings/profile" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-sidebar-foreground/65 hover:bg-white/[.06] hover:text-sidebar-foreground transition-colors">
           <Settings className="h-4 w-4" />
           <span className="flex-1">Settings</span>

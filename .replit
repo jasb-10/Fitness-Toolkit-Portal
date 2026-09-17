@@ -23,3 +23,6 @@ timeoutMs = 20000
 
 [userenv.shared]
 PORTAL_OWNER_EMAIL = "jbahra10@outlook.com"
+
+[nix]
+channel = "stable-25_05"
