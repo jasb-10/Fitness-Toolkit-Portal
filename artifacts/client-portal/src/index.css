@@ -55,32 +55,41 @@
 }
 
 :root {
-  --background: 41 33% 96%;
-  --foreground: 222 24% 17%;
-  --border: 38 21% 87%;
-  --input: 38 21% 84%;
-  --ring: 16 91% 57%;
-  --card: 42 38% 99%;
-  --card-foreground: 222 24% 17%;
-  --card-border: 38 21% 88%;
-  --sidebar: 222 24% 17%;
-  --sidebar-foreground: 42 38% 99%;
-  --sidebar-border: 222 19% 25%;
-  --sidebar-accent: 222 19% 25%;
-  --sidebar-accent-foreground: 42 38% 99%;
-  --popover: 42 38% 99%;
-  --popover-foreground: 222 24% 17%;
-  --popover-border: 38 21% 86%;
-  --primary: 16 91% 57%;
-  --primary-foreground: 42 38% 99%;
-  --secondary: 186 43% 89%;
-  --secondary-foreground: 188 51% 27%;
-  --muted: 39 23% 91%;
-  --muted-foreground: 222 10% 45%;
-  --accent: 63 69% 68%;
-  --accent-foreground: 222 24% 17%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 42 38% 99%;
+  --background: 220 10% 98%;
+  --foreground: 225 8% 7%;
+  --border: 220 10% 90%;
+  --input: 220 10% 90%;
+  --ring: 353 86% 51%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 225 8% 7%;
+  --card-border: 220 10% 92%;
+  
+  --sidebar: 225 8% 7%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 225 8% 12%;
+  --sidebar-accent: 225 8% 14%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 8% 7%;
+  --popover-border: 220 10% 90%;
+  
+  --primary: 353 86% 51%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 220 10% 95%;
+  --secondary-foreground: 225 8% 7%;
+  
+  --muted: 220 10% 96%;
+  --muted-foreground: 220 10% 40%;
+  
+  --accent: 353 86% 51%;
+  --accent-foreground: 0 0% 100%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  
   --app-font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --app-font-serif: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --app-font-mono: 'Space Grotesk', ui-monospace, monospace;
@@ -88,32 +97,40 @@
 }
 
 .dark {
-  --background: 222 24% 13%;
-  --foreground: 42 38% 99%;
-  --border: 222 19% 26%;
-  --card: 222 22% 17%;
-  --card-foreground: 42 38% 99%;
-  --card-border: 222 19% 26%;
-  --sidebar: 222 28% 10%;
-  --sidebar-foreground: 42 38% 99%;
-  --sidebar-border: 222 19% 21%;
-  --sidebar-accent: 222 20% 20%;
-  --sidebar-accent-foreground: 42 38% 99%;
-  --popover: 222 22% 17%;
-  --popover-foreground: 42 38% 99%;
-  --popover-border: 222 19% 26%;
-  --primary: 16 91% 57%;
-  --primary-foreground: 42 38% 99%;
-  --secondary: 188 35% 24%;
-  --secondary-foreground: 186 43% 89%;
-  --muted: 222 20% 21%;
-  --muted-foreground: 218 14% 67%;
-  --accent: 63 69% 68%;
-  --accent-foreground: 222 24% 17%;
-  --destructive: 0 72% 56%;
-  --destructive-foreground: 42 38% 99%;
-  --input: 222 19% 26%;
-  --ring: 16 91% 57%;
+  --background: 225 8% 7%;
+  --foreground: 0 0% 98%;
+  --border: 225 8% 18%;
+  --input: 225 8% 18%;
+  --ring: 353 86% 51%;
+  
+  --card: 225 8% 10%;
+  --card-foreground: 0 0% 98%;
+  --card-border: 225 8% 18%;
+  
+  --sidebar: 225 8% 5%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 225 8% 12%;
+  --sidebar-accent: 225 8% 14%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  
+  --popover: 225 8% 10%;
+  --popover-foreground: 0 0% 98%;
+  --popover-border: 225 8% 18%;
+  
+  --primary: 353 86% 51%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 225 8% 16%;
+  --secondary-foreground: 0 0% 98%;
+  
+  --muted: 225 8% 14%;
+  --muted-foreground: 220 10% 60%;
+  
+  --accent: 353 86% 51%;
+  --accent-foreground: 0 0% 100%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
 }
 
 @layer base {
@@ -180,63 +197,3 @@ button:active:not(:disabled) { transform: translateY(1px); }
   opacity: 1;
 }
 
-/* Fitness Comeback: vivid performance red, charcoal and cool white. */
-.comeback-red {
-  background-color: #f5f6f7 !important;
-  color: #171717 !important;
-}
-
-.comeback-red [class~="bg-[#183e2b]"] { background-color: #d71920 !important; }
-.comeback-red [class~="bg-[#102217]/80"] { background-color: rgb(24 24 27 / 88%) !important; }
-.comeback-red [class~="bg-[#fbfcf9]"] { background-color: #ffffff !important; }
-.comeback-red [class~="bg-[#f6f7f3]"] { background-color: #f5f6f7 !important; }
-.comeback-red [class~="bg-[#f2f7f1]"] { background-color: #ffffff !important; }
-.comeback-red [class~="bg-[#eef5ed]"],
-.comeback-red [class~="bg-[#eef1ec]"],
-.comeback-red [class~="bg-[#edf2ec]"],
-.comeback-red [class~="bg-[#eaf1eb]"],
-.comeback-red [class~="bg-[#e8f0e7]"],
-.comeback-red [class~="bg-[#dce8dd]"] { background-color: #f0f1f2 !important; }
-.comeback-red [class~="bg-[#d9f66b]"] {
-  background-color: #ff2b2b !important;
-  color: #ffffff !important;
-}
-
-.comeback-red [class~="text-[#142018]"] { color: #171717 !important; }
-.comeback-red [class~="text-[#183e2b]"],
-.comeback-red [class~="text-[#31563e]"],
-.comeback-red [class~="text-[#315b3e]"] { color: #c5121b !important; }
-.comeback-red [class~="text-[#516057]"],
-.comeback-red [class~="text-[#52705b]"],
-.comeback-red [class~="text-[#53645a]"],
-.comeback-red [class~="text-[#59725f]"],
-.comeback-red [class~="text-[#5f6f64]"],
-.comeback-red [class~="text-[#617066]"],
-.comeback-red [class~="text-[#647168]"],
-.comeback-red [class~="text-[#68756c]"],
-.comeback-red [class~="text-[#6b776f]"],
-.comeback-red [class~="text-[#6c786f]"],
-.comeback-red [class~="text-[#6f7c73]"],
-.comeback-red [class~="text-[#718078]"],
-.comeback-red [class~="text-[#738078]"],
-.comeback-red [class~="text-[#748078]"],
-.comeback-red [class~="text-[#77837b]"],
-.comeback-red [class~="text-[#7a877e]"],
-.comeback-red [class~="text-[#7c8980]"],
-.comeback-red [class~="text-[#8a958d]"],
-.comeback-red [class~="text-[#8a968e]"] { color: #676b70 !important; }
-
-.comeback-red [class~="border-[#315b3e]"],
-.comeback-red [class~="border-[#829086]"],
-.comeback-red [class~="border-[#91a096]"] { border-color: #e02027 !important; }
-.comeback-red [class~="border-[#dce3da]"],
-.comeback-red [class~="border-[#dfe4dc]"],
-.comeback-red [class~="border-[#e4e8e1]"],
-.comeback-red [class~="border-[#a9b4ac]"] { border-color: #dfe1e3 !important; }
-.comeback-red [class~="ring-[#315b3e]/10"] { --tw-ring-color: rgb(215 25 32 / 16%) !important; }
-
-.comeback-red input:focus,
-.comeback-red textarea:focus {
-  border-color: #e02027;
-  box-shadow: 0 0 0 3px rgb(215 25 32 / 12%);
-}

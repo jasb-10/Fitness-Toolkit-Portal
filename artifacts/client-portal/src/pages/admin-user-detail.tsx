@@ -15,7 +15,7 @@ import {
   type ActivitySummary,
   type ActivityEntry,
 } from "@workspace/api-client-react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { StaffOnly } from "@/components/RoleGate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -123,18 +123,18 @@ function Inner({ userId }: { userId: string }) {
 
   if (isLoading || !data) {
     return (
-      <AppShell>
+      <AdminShell>
         <div className="px-10 py-10">
           <Skeleton className="h-32 w-full" />
         </div>
-      </AppShell>
+      </AdminShell>
     );
   }
 
   const u = data.user;
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="border-b border-border px-10 pt-8">
         <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground">
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -431,7 +431,7 @@ function Inner({ userId }: { userId: string }) {
           </TabsContent>
         </Tabs>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }
 

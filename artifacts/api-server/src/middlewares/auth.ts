@@ -1,14 +1,26 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db, productEntitlementsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { sendEmail, welcomeEmail, getPortalUrl } from "../lib/email";
 import { recordActivity } from "../lib/activity";
 
 export interface AuthedRequest extends Request {
   userId: string;
-  userRole: "super_admin" | "admin" | "team" | "student";
+  userRole: "owner" | "staff" | "customer" | "super_admin" | "admin" | "team" | "student";
   clerkUserId: string;
+}
+
+export function isOwnerRole(role: string): boolean {
+  return role === "owner" || role === "super_admin";
+}
+
+export function isStaffRole(role: string): boolean {
+  return isOwnerRole(role) || role === "staff" || role === "admin" || role === "team";
+}
+
+export function isCustomerRole(role: string): boolean {
+  return role === "customer" || role === "student";
 }
 
 async function claimEmailEntitlements(userId: string, email: string) {
@@ -36,31 +48,22 @@ export async function ensureLocalUser(clerkUserId: string) {
     .limit(1);
   if (existing[0]) {
     let localUser = existing[0];
-    const ownerEmail = process.env.PORTAL_OWNER_EMAIL?.trim().toLowerCase();
-    if (localUser.role !== "super_admin") {
+    const configuredOwner =
+      Boolean(process.env.PORTAL_OWNER_EMAIL?.trim()) &&
+      localUser.email.toLowerCase() ===
+        process.env.PORTAL_OWNER_EMAIL!.trim().toLowerCase();
+    if (configuredOwner && !isOwnerRole(localUser.role)) {
       localUser = await db.transaction(async (tx) => {
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext('fitness-toolkit-owner-bootstrap'))`,
         );
-        const [currentOwner] = await tx
-          .select({ id: usersTable.id })
-          .from(usersTable)
-          .where(eq(usersTable.role, "super_admin"))
-          .limit(1);
-        const [firstLinkedAccount] = await tx
-          .select({ id: usersTable.id })
-          .from(usersTable)
-          .where(sql`${usersTable.clerkId} is not null`)
-          .orderBy(asc(usersTable.createdAt))
-          .limit(1);
-        const shouldOwnPortal =
-          (!currentOwner && firstLinkedAccount?.id === localUser.id) ||
-          (Boolean(ownerEmail) &&
-            localUser.email.toLowerCase() === ownerEmail);
-        if (!shouldOwnPortal) return localUser;
+        await tx
+          .update(usersTable)
+          .set({ role: "customer" })
+          .where(sql`${usersTable.role} in ('owner', 'super_admin') and ${usersTable.id} <> ${localUser.id}`);
         const [promoted] = await tx
           .update(usersTable)
-          .set({ role: "super_admin" })
+          .set({ role: "owner" })
           .where(eq(usersTable.id, localUser.id))
           .returning();
         return promoted ?? localUser;
@@ -104,28 +107,16 @@ export async function ensureLocalUser(clerkUserId: string) {
     // Ignore — fallback values used.
   }
 
-  // The first real Clerk account becomes the portal owner. Seed/demo users have
-  // no Clerk ID, so they do not prevent the owner bootstrap. An explicit owner
-  // email can still grant owner access in either environment.
   const ownerEmail = process.env.PORTAL_OWNER_EMAIL?.trim().toLowerCase();
 
   try {
     const created = await db.transaction(async (tx) => {
-      // Serialize first-account checks so two simultaneous signups cannot both
-      // receive owner access.
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext('fitness-toolkit-owner-bootstrap'))`,
       );
-      const [linkedAccount] = await tx
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(sql`${usersTable.clerkId} is not null`)
-        .limit(1);
       const isConfiguredOwner =
         Boolean(ownerEmail) && email.toLowerCase() === ownerEmail;
-      const role = isConfiguredOwner || !linkedAccount
-        ? "super_admin"
-        : "student";
+      const role = isConfiguredOwner ? "owner" : "customer";
       const [row] = await tx
         .insert(usersTable)
         .values({
@@ -144,7 +135,7 @@ export async function ensureLocalUser(clerkUserId: string) {
       const tpl = welcomeEmail({
         name,
         portalUrl: getPortalUrl(),
-        isFirstAdmin: created.role === "super_admin",
+          isFirstAdmin: isOwnerRole(created.role),
       });
       void sendEmail({ to: email, ...tpl }).catch(() => {});
     }
@@ -186,7 +177,20 @@ export async function requireAuth(
 export function requireRole(roles: AuthedRequest["userRole"][]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const r = (req as AuthedRequest).userRole;
-    if (!roles.includes(r)) {
+    const allowed = new Set(roles);
+    if (allowed.has("owner") || allowed.has("super_admin")) {
+      allowed.add("owner");
+      allowed.add("super_admin");
+    }
+    if (allowed.has("staff") || allowed.has("admin") || allowed.has("team")) {
+      allowed.add("staff");
+      allowed.add("admin");
+      allowed.add("team");
+      allowed.add("owner");
+      allowed.add("super_admin");
+    }
+    if (allowed.has("customer")) allowed.add("student");
+    if (!allowed.has(r)) {
       return res.status(403).json({ error: "Forbidden" });
     }
     return next();

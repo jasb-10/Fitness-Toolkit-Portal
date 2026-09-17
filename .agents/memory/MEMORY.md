@@ -1,0 +1,1 @@
+- [Orval Zod compatibility](orval-zod-compatibility.md) — generated validators require a maintained Zod 3 compatibility rewrite after code generation.

@@ -8,7 +8,7 @@ import {
   useDeleteCourse,
   getListCoursesQueryKey,
 } from "@workspace/api-client-react";
-import { AppShell, PageHeader } from "@/components/AppShell";
+import { AdminShell, AdminPageHeader } from "@/components/AdminShell";
 import { AdminOnly } from "@/components/RoleGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,8 +73,8 @@ function Inner() {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
 
   return (
-    <AppShell>
-      <PageHeader
+    <AdminShell>
+      <AdminPageHeader
         eyebrow="Admin"
         title="Courses"
         description="Create courses, then build out their chapters and lessons."
@@ -252,6 +252,6 @@ function Inner() {
           </ul>
         )}
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }

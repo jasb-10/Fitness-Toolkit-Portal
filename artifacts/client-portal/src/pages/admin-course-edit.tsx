@@ -33,7 +33,7 @@ import {
   LessonAttachmentsEditor,
   type AttachmentDraft,
 } from "@/components/LessonAttachmentsEditor";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { AdminOnly } from "@/components/RoleGate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -134,7 +134,7 @@ function Inner({ courseId }: { courseId: string }) {
   const [renamingChapter, setRenamingChapter] = useState<Chapter | null>(null);
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="border-b border-border px-10 pt-8">
         <Link href="/admin/courses" className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground">
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -285,7 +285,7 @@ function Inner({ courseId }: { courseId: string }) {
           onSaved={invalidate}
         />
       )}
-    </AppShell>
+    </AdminShell>
   );
 }
 

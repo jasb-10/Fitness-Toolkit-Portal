@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useAdminGetStats } from "@workspace/api-client-react";
-import { AppShell, PageHeader } from "@/components/AppShell";
+import { AdminShell, AdminPageHeader } from "@/components/AdminShell";
 import { StaffOnly } from "@/components/RoleGate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,8 +17,8 @@ export default function AdminHomePage() {
 function Inner() {
   const { data, isLoading } = useAdminGetStats();
   return (
-    <AppShell>
-      <PageHeader
+    <AdminShell>
+      <AdminPageHeader
         eyebrow="Admin"
         title="Overview"
         description="A snapshot of platform activity, learner progress, and live engagements."
@@ -82,7 +82,7 @@ function Inner() {
           )}
         </div>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }
 

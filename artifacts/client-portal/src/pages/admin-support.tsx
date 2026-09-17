@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AdminOnly } from "@/components/RoleGate";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useAdminListSupportArticles,
@@ -23,7 +24,7 @@ import {
   getAdminListRefundRequestsQueryKey,
   getAdminGetSupportSettingsQueryKey,
 } from "@workspace/api-client-react";
-import { AppShell, PageHeader } from "@/components/AppShell";
+import { AdminShell, AdminPageHeader } from "@/components/AdminShell";
 import { basePath } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1150,10 +1151,19 @@ function SettingsTab() {
   );
 }
 
+
 export default function AdminSupportPage() {
   return (
-    <AppShell>
-      <PageHeader
+    <AdminOnly>
+      <Inner />
+    </AdminOnly>
+  );
+}
+
+function Inner() {
+  return (
+    <AdminShell>
+      <AdminPageHeader
         eyebrow="Admin"
         title="Support"
         description="Manage the help center, AI knowledge sources, refund requests, and assistant settings."
@@ -1180,7 +1190,7 @@ export default function AdminSupportPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }
 

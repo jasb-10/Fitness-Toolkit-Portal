@@ -12,6 +12,7 @@ import storageRouter from "./storage";
 import eventsRouter from "./events";
 import invoicesRouter from "./invoices";
 import comebackRouter from "./comeback";
+import websiteRouter from "./website";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(storageRouter);
 router.use(eventsRouter);
 router.use(invoicesRouter);
 router.use(comebackRouter);
+  router.use(websiteRouter);
 
 export default router;

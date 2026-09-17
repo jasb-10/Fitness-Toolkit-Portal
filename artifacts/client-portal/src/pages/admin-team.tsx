@@ -9,7 +9,7 @@ import {
   getAdminListUsersQueryKey,
   type Role,
 } from "@workspace/api-client-react";
-import { AppShell, PageHeader } from "@/components/AppShell";
+import { AdminShell, AdminPageHeader } from "@/components/AdminShell";
 import { AdminOnly } from "@/components/RoleGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,8 +65,8 @@ function Inner() {
   const [role, setRole] = useState<Role>("team");
 
   return (
-    <AppShell>
-      <PageHeader
+    <AdminShell>
+      <AdminPageHeader
         eyebrow="Admin"
         title="Team"
         description="Members with team-level or admin-level access to this portal."
@@ -200,6 +200,6 @@ function Inner() {
           </div>
         )}
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }

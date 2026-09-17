@@ -420,9 +420,117 @@ export const productEntitlementsTable = pgTable(
   }),
 );
 
+export const businessProfilesTable = pgTable(
+  "business_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    businessName: text("business_name").notNull().default(""),
+    niche: text("niche").notNull().default(""),
+    location: text("location").notNull().default(""),
+    service: text("service").notNull().default(""),
+    audience: text("audience").notNull().default(""),
+    conversionGoal: text("conversion_goal").notNull().default(""),
+    destinationUrl: text("destination_url"),
+    brandData: jsonb("brand_data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    evidenceData: jsonb("evidence_data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userUnique: uniqueIndex("business_profiles_user_unique").on(t.userId),
+  }),
+);
+
+export const websiteProjectsTable = pgTable(
+  "website_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    businessProfileId: uuid("business_profile_id").references(
+      () => businessProfilesTable.id,
+      { onDelete: "set null" },
+    ),
+    name: text("name").notNull().default("My fitness website"),
+    status: text("status").notNull().default("draft"),
+    currentStage: text("current_stage").notNull().default("brief"),
+    briefData: jsonb("brief_data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    styleData: jsonb("style_data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    sections: jsonb("sections")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull()
+      .default([]),
+    progressData: jsonb("progress_data")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("website_projects_user_idx").on(t.userId),
+    profileIdx: index("website_projects_profile_idx").on(t.businessProfileId),
+  }),
+);
+
+export const projectAssetsTable = pgTable(
+  "project_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => websiteProjectsTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    objectPath: text("object_path").notNull().unique(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    rightsStatus: text("rights_status").notNull().default("pending"),
+    focalPoint: jsonb("focal_point")
+      .$type<{ x: number; y: number } | null>()
+      .default(null),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("project_assets_project_idx").on(t.projectId),
+    userIdx: index("project_assets_user_idx").on(t.userId),
+  }),
+);
+
 export type User = typeof usersTable.$inferSelect;
 export type Course = typeof coursesTable.$inferSelect;
 export type Chapter = typeof chaptersTable.$inferSelect;
 export type Lesson = typeof lessonsTable.$inferSelect;
 export type DfyProject = typeof dfyProjectsTable.$inferSelect;
 export type ComebackCampaign = typeof comebackCampaignsTable.$inferSelect;
+export type BusinessProfile = typeof businessProfilesTable.$inferSelect;
+export type WebsiteProject = typeof websiteProjectsTable.$inferSelect;
+export type ProjectAsset = typeof projectAssetsTable.$inferSelect;

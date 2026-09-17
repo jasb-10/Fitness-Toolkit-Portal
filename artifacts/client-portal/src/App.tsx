@@ -28,6 +28,7 @@ import { track } from "@/lib/track";
 import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
 
 import DashboardPage from "@/pages/dashboard";
+import BusinessProfilePage from "@/pages/business";
 import CoursesPage from "@/pages/courses";
 import CoursePlayerPage from "@/pages/course-player";
 import ProjectsPage from "@/pages/projects";
@@ -48,7 +49,9 @@ import SupportPage from "@/pages/support";
 import NotFound from "@/pages/not-found";
 import ProductPreviewPage from "@/pages/product-preview";
 import WebsitePrototypePage from "@/pages/website-prototype";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { AppShell } from "@/components/AppShell";
+import { AdminOnly, StaffOnly } from "@/components/RoleGate";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -79,16 +82,18 @@ function WebsiteBuilderRoute() {
   const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
   const { data: me } = useGetMe({
-    query: { refetchOnMount: "always" },
+    query: { refetchOnMount: "always", queryKey: getGetMeQueryKey() },
   });
 
   return (
-    <WebsitePrototypePage
-      accountName={me?.user.name ?? "Your account"}
-      accountEmail={me?.user.email ?? clerkUser?.primaryEmailAddress?.emailAddress}
-      accountRole={me?.user.role}
-      onSignOut={() => void signOut()}
-    />
+    <AppShell>
+      <WebsitePrototypePage
+        accountName={me?.user.name ?? "Your account"}
+        accountEmail={me?.user.email ?? clerkUser?.primaryEmailAddress?.emailAddress}
+        accountRole={me?.user.role}
+        onSignOut={() => void signOut()}
+      />
+    </AppShell>
   );
 }
 
@@ -135,11 +140,11 @@ function AuthFrame({ mode, children }: { mode: "sign-in" | "sign-up"; children: 
       <div className="relative hidden overflow-hidden bg-sidebar p-10 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
         <div className="absolute -right-32 -top-32 h-[440px] w-[440px] rounded-full border-[44px] border-primary/20" />
         <div className="absolute -bottom-40 -left-24 h-[420px] w-[420px] rounded-full border-[34px] border-accent/10" />
-        <div className="relative"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xl font-bold text-primary-foreground">F</div><div><div className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</div><div className="text-[10px] uppercase tracking-[.22em] text-sidebar-foreground/45">Member workspace</div></div></div></div>
-        <div className="relative max-w-lg pb-8"><div className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-accent"><Activity className="h-4 w-4" /> Progress, made visible</div><h1 className="font-display text-6xl font-semibold leading-[.95] tracking-[-.06em]">Make the next move count.</h1><p className="mt-6 max-w-md text-base leading-7 text-sidebar-foreground/65">Learn the work, keep the projects moving, and build a business you are proud to run.</p><div className="mt-8 flex items-center gap-3 text-sm text-sidebar-foreground/55"><ShieldCheck className="h-4 w-4 text-accent" /> A clear place for your business momentum</div></div>
+        <div className="relative"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xl font-bold text-primary-foreground">F</div><div><div className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</div><div className="text-[10px] uppercase tracking-[.22em] text-sidebar-foreground/45">Customer workspace</div></div></div></div>
+        <div className="relative max-w-lg pb-8"><div className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-accent"><Activity className="h-4 w-4" /> Welcome to the platform</div><h1 className="font-display text-6xl font-semibold leading-[.95] tracking-[-.06em]">Make the next move count.</h1><p className="mt-6 max-w-md text-base leading-7 text-sidebar-foreground/65">Build your online presence and run a business you are proud of.</p><div className="mt-8 flex items-center gap-3 text-sm text-sidebar-foreground/55"><ShieldCheck className="h-4 w-4 text-accent" /> A clear place for your business growth</div></div>
         <div className="relative flex items-center gap-2 text-xs text-sidebar-foreground/40">Fitness Toolkit Portal <ArrowRight className="h-3.5 w-3.5" /> Start where you are</div>
       </div>
-      <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-8"><div className="w-full max-w-[440px]"><div className="mb-8 flex items-center gap-3 lg:hidden"><div className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-bold text-primary-foreground">F</div><span className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</span></div><div className="mb-6"><div className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">{mode === "sign-in" ? "Welcome back" : "Your workspace starts here"}</div><h2 className="mt-2 font-display text-3xl font-semibold tracking-[-.04em]">{mode === "sign-in" ? "Pick up where you left off." : "Build your momentum."}</h2></div>{children}</div></div>
+      <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-8"><div className="w-full max-w-[440px]"><div className="mb-8 flex items-center gap-3 lg:hidden"><div className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-bold text-primary-foreground">F</div><span className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</span></div><div className="mb-6"><div className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">{mode === "sign-in" ? "Welcome back" : "Your workspace starts here"}</div><h2 className="mt-2 font-display text-3xl font-semibold tracking-[-.04em]">{mode === "sign-in" ? "Pick up where you left off." : "Start building."}</h2></div>{children}</div></div>
     </div>
   );
 }
@@ -164,7 +169,16 @@ function ClerkQueryClientCacheInvalidator() {
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   // The design preview is intentionally usable before account and API setup.
-  if (window.location.pathname.startsWith("/preview")) return <WebsitePrototypePage />;
+  if (window.location.pathname.startsWith("/preview")) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WebsitePrototypePage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
@@ -193,13 +207,18 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           <Switch>
-            <Route path="/preview/*?" component={WebsitePrototypePage} />
+            <Route path="/preview/*?">
+              <WebsitePrototypePage />
+            </Route>
             <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
 
             <Route path="/dashboard">
               <Protected><DashboardPage /></Protected>
+            </Route>
+            <Route path="/business">
+              <Protected><BusinessProfilePage /></Protected>
             </Route>
             <Route path="/website">
               <Protected><WebsiteBuilderRoute /></Protected>
@@ -234,34 +253,34 @@ function ClerkProviderWithRoutes() {
             </Route>
 
             <Route path="/admin">
-              <Protected><AdminHomePage /></Protected>
+              <Protected><AdminOnly><AdminHomePage /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/users">
-              <Protected><AdminUsersPage /></Protected>
+              <Protected><AdminOnly><AdminUsersPage /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/users/:userId">
               {(p) => (
-                <Protected><AdminUserDetailPage userId={p.userId!} /></Protected>
+                <Protected><AdminOnly><AdminUserDetailPage userId={p.userId!} /></AdminOnly></Protected>
               )}
             </Route>
             <Route path="/admin/courses">
-              <Protected><AdminCoursesPage /></Protected>
+              <Protected><AdminOnly><AdminCoursesPage /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/courses/:courseId/edit">
               {(p) => (
-                <Protected><AdminCourseEditPage courseId={p.courseId!} /></Protected>
+                <Protected><AdminOnly><AdminCourseEditPage courseId={p.courseId!} /></AdminOnly></Protected>
               )}
             </Route>
             <Route path="/admin/courses/:courseId">
               {(p) => (
-                <Protected><AdminCourseEditPage courseId={p.courseId!} /></Protected>
+                <Protected><AdminOnly><AdminCourseEditPage courseId={p.courseId!} /></AdminOnly></Protected>
               )}
             </Route>
             <Route path="/admin/team">
-              <Protected><AdminTeamPage /></Protected>
+              <Protected><AdminOnly><AdminTeamPage /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/support">
-              <Protected><AdminSupportPage /></Protected>
+              <Protected><StaffOnly><AdminSupportPage /></StaffOnly></Protected>
             </Route>
 
             <Route path="/upsell-1">

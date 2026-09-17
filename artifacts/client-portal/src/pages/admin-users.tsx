@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Search } from "lucide-react";
 import { useAdminListUsers } from "@workspace/api-client-react";
-import { AppShell, PageHeader } from "@/components/AppShell";
+import { AdminShell, AdminPageHeader } from "@/components/AdminShell";
 import { StaffOnly } from "@/components/RoleGate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +40,8 @@ function Inner() {
   }, [data, q]);
 
   return (
-    <AppShell>
-      <PageHeader
+    <AdminShell>
+      <AdminPageHeader
         eyebrow="Admin"
         title="Users"
         description="Search and manage every member of the portal."
@@ -143,6 +143,6 @@ function Inner() {
           )}
         </div>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }

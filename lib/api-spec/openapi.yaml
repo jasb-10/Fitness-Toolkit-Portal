@@ -58,6 +58,103 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UploadUrlResponse" }
 
+  /business-profile:
+    get:
+      operationId: getBusinessProfile
+      tags: [me]
+      responses:
+        "200":
+          description: Reusable customer business profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BusinessProfile" }
+    put:
+      operationId: updateBusinessProfile
+      tags: [me]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateBusinessProfileBody" }
+      responses:
+        "200":
+          description: Updated business profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BusinessProfile" }
+
+  /website-projects:
+    get:
+      operationId: listWebsiteProjects
+      tags: [dfy]
+      responses:
+        "200":
+          description: Customer website projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WebsiteProject" }
+    post:
+      operationId: createWebsiteProject
+      tags: [dfy]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWebsiteProjectBody" }
+      responses:
+        "201":
+          description: Created website project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteProject" }
+
+  /website-projects/{projectId}:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getWebsiteProject
+      tags: [dfy]
+      responses:
+        "200":
+          description: Website project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteProject" }
+    patch:
+      operationId: updateWebsiteProject
+      tags: [dfy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateWebsiteProjectBody" }
+      responses:
+        "200":
+          description: Updated website project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteProject" }
+
+  /website-projects/{projectId}/assets:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: registerProjectAsset
+      tags: [storage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterProjectAssetBody" }
+      responses:
+        "201":
+          description: Registered project asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectAsset" }
+
   /healthz:
     get:
       operationId: healthCheck
@@ -1003,11 +1100,12 @@ components:
   schemas:
     UploadUrlRequest:
       type: object
-      required: [name, size, contentType]
+      required: [name, size, contentType, projectId]
       properties:
         name: { type: string, minLength: 1 }
         size: { type: integer, minimum: 1 }
         contentType: { type: string, minLength: 1 }
+        projectId: { type: string, format: uuid }
     UploadUrlResponse:
       type: object
       required: [uploadURL, objectPath]
@@ -1024,7 +1122,99 @@ components:
 
     Role:
       type: string
-      enum: [super_admin, admin, team, student]
+      enum: [owner, staff, customer, super_admin, admin, team, student]
+
+    BusinessProfile:
+      type: object
+      required: [id, userId, businessName, niche, location, service, audience, conversionGoal, brandData, evidenceData, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        businessName: { type: string }
+        niche: { type: string }
+        location: { type: string }
+        service: { type: string }
+        audience: { type: string }
+        conversionGoal: { type: string }
+        destinationUrl: { type: string, nullable: true }
+        brandData: { type: object, additionalProperties: true }
+        evidenceData: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    UpdateBusinessProfileBody:
+      type: object
+      properties:
+        businessName: { type: string }
+        niche: { type: string }
+        location: { type: string }
+        service: { type: string }
+        audience: { type: string }
+        conversionGoal: { type: string }
+        destinationUrl: { type: string, nullable: true }
+        brandData: { type: object, additionalProperties: true }
+        evidenceData: { type: object, additionalProperties: true }
+
+    WebsiteProject:
+      type: object
+      required: [id, userId, name, status, currentStage, briefData, styleData, sections, progressData, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        businessProfileId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        status: { type: string }
+        currentStage: { type: string }
+        briefData: { type: object, additionalProperties: true }
+        styleData: { type: object, additionalProperties: true }
+        sections: { type: array, items: { type: object, additionalProperties: true } }
+        progressData: { type: array, items: { type: object, additionalProperties: true } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateWebsiteProjectBody:
+      type: object
+      properties:
+        name: { type: string }
+        businessProfileId: { type: string, format: uuid, nullable: true }
+        briefData: { type: object, additionalProperties: true }
+
+    UpdateWebsiteProjectBody:
+      type: object
+      properties:
+        name: { type: string }
+        status: { type: string }
+        currentStage: { type: string }
+        businessProfileId: { type: string, format: uuid, nullable: true }
+        briefData: { type: object, additionalProperties: true }
+        styleData: { type: object, additionalProperties: true }
+        sections: { type: array, items: { type: object, additionalProperties: true } }
+        progressData: { type: array, items: { type: object, additionalProperties: true } }
+
+    ProjectAsset:
+      type: object
+      required: [id, projectId, userId, objectPath, fileName, contentType, size, rightsStatus, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        objectPath: { type: string }
+        fileName: { type: string }
+        contentType: { type: string }
+        size: { type: integer }
+        rightsStatus: { type: string }
+        focalPoint: { type: object, nullable: true, properties: { x: { type: number }, y: { type: number } } }
+        createdAt: { type: string, format: date-time }
+
+    RegisterProjectAssetBody:
+      type: object
+      required: [objectPath, fileName, contentType, size]
+      properties:
+        objectPath: { type: string }
+        fileName: { type: string }
+        contentType: { type: string }
+        size: { type: integer, minimum: 1 }
+        rightsStatus: { type: string }
 
     User:
       type: object

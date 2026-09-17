@@ -38,14 +38,20 @@ export function initials(name: string | null | undefined): string {
 
 export function isStaff(
   role: string | null | undefined,
-): role is "super_admin" | "admin" | "team" {
-  return role === "super_admin" || role === "admin" || role === "team";
+): role is "owner" | "staff" | "super_admin" | "admin" | "team" {
+  return (
+    role === "owner" ||
+    role === "staff" ||
+    role === "super_admin" ||
+    role === "admin" ||
+    role === "team"
+  );
 }
 
 export function isAdmin(
   role: string | null | undefined,
-): role is "super_admin" | "admin" {
-  return role === "super_admin" || role === "admin";
+): role is "owner" | "super_admin" | "admin" {
+  return role === "owner" || role === "super_admin" || role === "admin";
 }
 
 export function getYouTubeId(url: string | null | undefined): string | null {
