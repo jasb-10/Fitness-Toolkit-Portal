@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "69kJFSxmcGIOJTOuiN8UZ"
+uri = "file://screenshots/portal-preview-desktop.jpg"
+type = "image"
+title = "Fitness Toolkit Portal — desktop preview"
+description = "Desktop preview of the landing-page builder workspace."
+logical_id = "d4f8c76e-4585-4a5b-81da-baa43d4d9def"
+content_hash = "sha256:9df1b8893f117121119027b5d80f9565017125d49cbd15cc6a16c238b2f24806"
+size = 113330
+mtime_ms = 1789664243331
+storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:c9325f82-18c4-4450-9d09-3fca4e1f74af/d4f8c76e-4585-4a5b-81da-baa43d4d9def/ee770bfa-8bb2-40cb-90da-c62d299a60d6"
+storage_version_token = "1789664253868730"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "Qg4l7jhp1YbK5zgLRFnmI"
+uri = "file://screenshots/portal-preview-mobile.jpg"
+type = "image"
+title = "Fitness Toolkit Portal — mobile preview"
+description = "Mobile preview of the responsive landing-page builder workspace."
+logical_id = "3f84a42b-25b3-416a-95ae-1ac2ddc28a05"
+content_hash = "sha256:d1d95857ab65922cc1dae93f0854d42f27b819ad33d6b1e4b550d15f555a67d8"
+size = 45315
+mtime_ms = 1789664245199
+storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:c9325f82-18c4-4450-9d09-3fca4e1f74af/3f84a42b-25b3-416a-95ae-1ac2ddc28a05/8426ba56-f503-46f4-812f-39b9bc5fc4a1"
+storage_version_token = "1789664254565523"
+content_type = "image/jpeg"
