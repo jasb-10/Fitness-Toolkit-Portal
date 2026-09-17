@@ -1,0 +1,511 @@
+# Fitness Toolkit Portal — Master Replit Build Brief
+
+## Read this before changing code
+
+This is an existing Replit project, not a request to generate a new app from scratch. Inspect the current React/Vite customer portal, Express API, PostgreSQL/Drizzle database, Clerk authentication, object storage, admin pages and GHL-related code before making changes.
+
+The current public-facing website flow is a **prototype**. It saves mostly in the browser, uses timed “generation” stages, has scripted revision responses, and downloads a basic HTML file. The underlying project still contains an older Fitness Comeback Campaign implementation and masterclass/DFY template features. Do not merely reskin those features or describe the prototype as production-ready.
+
+Build the new product around the specification below. Preserve useful infrastructure, but remove, disable or clearly separate obsolete customer-facing features. Do not overwrite existing customer records or run destructive migrations without first identifying what data exists.
+
+The owner is not technical. The customer experience and owner controls must be understandable without using a terminal.
+
+---
+
+## 1. Business model and product ladder
+
+Fitness Toolkit serves independent fitness and fitness-adjacent businesses: solo personal trainers, online coaches, small gyms, group-fitness studios, yoga and Pilates businesses, martial-arts schools, movement studios and similar owner-operated businesses. Initial English-speaking markets are the US, UK, Canada, Australia and New Zealand.
+
+The umbrella outcome is helping them look professional and get more enquiries and clients. The product must not feel like a generic prompt wrapper, PDF library, course, or full CRM.
+
+| Funnel item | Current direction | Portal access |
+|---|---|---|
+| Front end | **$27 Personalised Fitness Website** | Complete one-page website creation and delivery |
+| Bump 1 | **Extra Pages**; price and exact page count to confirm | Additional pages within the same website project |
+| Bump 2 | **Undecided** | Do not sell or imply it is functional |
+| Upsell 1 | **$47 Campaign Studio** | Personalised promotional campaigns using the saved business profile |
+| Upsell 2 | **$97 Meta Ad Launch Pack** | Personalised ad strategy, copy, creative and matching page variation |
+
+The customer sees one coherent portal and one saved business profile. They should not repeat onboarding for each product.
+
+### Important offer correction
+
+The $27 product is **not** the Comeback Campaign. Former-client comeback, lost-lead recovery and filling empty classes are possible campaign objectives inside the $47 Campaign Studio.
+
+### Hosting boundary
+
+The $27 purchase delivers **ready-to-publish website files**, a working private preview and practical publishing instructions. It does **not** include a live public website, domain registration, indefinite hosting, native CRM, managed ads or installation into every possible website builder.
+
+Make that distinction clear before checkout, during onboarding and at delivery. Do not market the offer as “your website is live” when it is only previewed inside Fitness Toolkit.
+
+---
+
+## 2. Customer portal structure
+
+Keep the strong red-and-charcoal visual identity and simple left sidebar, but reorganise it around the current products:
+
+- Home
+- My Business and Brand Assets
+- My Website — unlocked by the $27 purchase
+- Extra Pages — unlocked only if bump 1 was bought
+- Campaign Studio — unlocked only if upsell 1 was bought
+- Meta Ads — unlocked only if upsell 2 was bought
+- Help and Delivery Guides
+- Account
+
+An undecided bump should **not** appear to customers as “To be decided.” Hide it from the customer portal and GHL checkout until the offer is defined and deliverable.
+
+Locked products may be visible as tasteful previews, but their screens and API endpoints must be genuinely inaccessible without entitlement. Do not confuse a padlock icon with security.
+
+The Home screen should focus on the customer’s next action: complete the brief, review a draft, request a revision or download an approved site. Do not let locked upsells dominate the workspace.
+
+Remove old customer-facing “Comeback Campaign,” masterclass, course, student and advertorial wording wherever it no longer belongs. Only retain legacy admin modules if they have a clear role in this business.
+
+---
+
+## 3. The $27 website: complete customer journey
+
+### A. Account and purchase access
+
+A customer buys in GHL, receives one clear access email, creates an account or signs in using their purchase email, and reaches their unlocked website project. Their progress belongs to their account, not one browser.
+
+If an upsell is purchased before account creation, hold its access against the purchase email and attach it after that email is verified.
+
+### B. Guided business brief
+
+The brief should be comprehensive without looking like a single huge form. Use short stages, save automatically, show progress, allow Back and Continue, and let customers paste rough notes.
+
+Collect:
+
+**Business basics**
+
+- Business name and fitness business type
+- Country, location or online-only status
+- Contact details and social links they want displayed
+- Existing website, if any
+- Booking, application, enquiry or payment destination
+- Years of experience and relevant qualifications
+
+**Offer and customer**
+
+- Main service and secondary services
+- Ideal customer
+- Problem they help solve and desired outcome
+- What is included
+- Prices or whether pricing should be omitted
+- What differentiates the business
+- Desired website action: booking, enquiry, trial, class registration, programme purchase or credibility
+- Capacity, schedule or service-area details when relevant
+
+**Voice and preferences**
+
+- Desired tone
+- Words or claims to avoid
+- Existing copy or social bio
+- Competitors and websites they admire
+- Specific design references and *what* they like about them
+- Anything that must remain unchanged
+- Open context box for additional instructions
+
+Use conditional questions for studios, classes, online programmes and solo practitioners. Do not ask a yoga teacher for gym facilities or an online coach for a local studio timetable.
+
+### C. Assets and proof
+
+Replace the single generic upload box with clearly labelled categories:
+
+- Logo and brand guide
+- Coach or team photographs
+- Studio, class or facility photographs
+- Other owned/licensed imagery
+- Genuine testimonials
+- Genuine results and qualifications
+- Existing brochure, site screenshots or copy
+
+Let customers label an upload: “Use as hero,” “Do not use,” “Old logo,” “For the Services section,” etc. Store files securely so they survive logout and work on another device. Show thumbnails and allow replacement or removal.
+
+Never invent testimonials, transformations, credentials, statistics or medical claims. If proof is absent, use a different section. If the customer has no good photographs, provide a clearly licensed fallback and tell them what was used. Do not silently package a temporary demonstration image into their final website.
+
+### D. Website planner
+
+The $27 one-page website must feel complete. Do not restrict it to a hero plus three thin sections to make the bump attractive.
+
+Recommend approximately 7–10 appropriate sections from a controlled library, such as:
+
+- Announcement bar, when justified
+- Hero and primary action
+- Credibility or qualifications
+- Who the service is for
+- Services or classes
+- How it works
+- Coach or studio story
+- Genuine results or testimonials
+- Pricing or packages, if provided
+- Timetable, if relevant
+- FAQ
+- Final booking/enquiry action
+- Contact and footer
+
+Show why sections are recommended. Allow add, remove and reorder. If a chosen section lacks required information, ask a small follow-up question, offer a credible alternative or omit it.
+
+For each section, allow: **I’ll provide the details / Help me write this / Remove it**. “Help me write this” must never fabricate proof.
+
+---
+
+## 4. The four website design options
+
+We agreed on **four visible starting looks**, not the old three vague routes:
+
+1. **Bold Performance** — energetic, high contrast, strong photography and decisive typography.
+2. **Editorial Calm** — refined pacing, generous space, premium typography and restrained imagery.
+3. **Natural Studio** — warm, grounded, human and approachable.
+4. **Modern Clarity** — crisp, spacious, contemporary and highly legible.
+
+These are **creative directions, not business-type templates**. A Pilates owner may choose bold; a strength coach may choose calm.
+
+The four options must be genuinely different **full-page design systems**. They cannot be the same hero, cards and section layout with different palettes. Each should vary composition, image treatment, typography, spacing, navigation, section rhythm, buttons and mobile treatment.
+
+Show the customer previews using **their own business name, offer and imagery** where possible. Let them inspect desktop and mobile. Recommend one or two based on the brief, while allowing all four to be browsed.
+
+The choices “Design it for me,” “Fine-tune” and “Use my brand” can remain as **ways of using the four systems**, not substitutes for seeing what the four options look like:
+
+- Design it for me: choose and explain the recommended direction.
+- Fine-tune: adjust palette, typography, imagery and selected layout choices.
+- Use my brand: apply supplied colours, logo, images and brand guidance within a suitable design system.
+
+Allow an optional inspiration URL and a note such as “I like the large photography and quiet typography.” Extract design principles; do not copy another site’s layout, images or text.
+
+Use the landing pages already supplied by the owner and the cross-industry references researched earlier as an **internal quality bar**. Customers do not need a gallery of dozens of unrelated sales pages. The target is premium art direction within a repeatable, automated system, not a claim of fully bespoke agency work for $27.
+
+---
+
+## 5. Real generation and quality control
+
+Replace the timed prototype with an actual production job:
+
+1. Validate and save the brief and assets.
+2. Normalise rough customer information into structured facts.
+3. Recommend a page plan and design direction.
+4. Generate concise, specific copy in structured data.
+5. Assemble it from tested website components.
+6. Choose and prepare allowed images.
+7. Run automated quality checks.
+8. Save a versioned preview.
+9. Notify the customer that the draft is ready.
+
+The AI should write and select. The design renderer should enforce quality. Do not ask an AI model to invent arbitrary HTML/CSS from scratch for every buyer.
+
+Quality checks must catch at least:
+
+- Hero headline too long or overflowing
+- Generic or repetitive copy
+- Missing or broken calls to action
+- Placeholder names, URLs or testimonials
+- Unsupported results or medical claims
+- Poor image resolution or crop
+- Sections with no real substance
+- Broken navigation
+- Desktop/mobile overflow
+- Preview/export differences
+- Country spelling and terminology errors
+
+The progress screen should report **real job states**, not a fixed ten-stage animation. If work is queued, say so. Do not claim SEO, image review or mobile optimisation was completed unless those checks actually ran. An optional human exception queue is acceptable; routine orders should not require manual production.
+
+Viktor or another external AI worker is **optional**. The app can run its own background production jobs. Greg’s important pattern is: customer intake inside the portal → production worker reads the brief → completed work returns to that customer’s account. The GHL purchase webhook alone does not accomplish production.
+
+---
+
+## 6. Editing and revision experience
+
+The customer must be able to edit the result without needing AI for every small change.
+
+Required:
+
+- Edit every visible text field
+- Change buttons and destinations
+- Replace, crop and reposition images
+- Change palette and typography
+- Hide, add and reorder appropriate sections
+- Switch a section layout where supported
+- Preview desktop, tablet and mobile
+- Undo/redo or reliable version history
+- Restore an earlier approved version
+- Request a targeted AI change to one section
+- Request a different overall direction without re-entering the brief
+- Approve only when satisfied
+
+Unlimited manual editing and previews should use **no AI tokens**. AI calls happen only for generation, targeted AI revisions or a full redesign.
+
+The earlier working suggestion was one complete website, three initial design previews, up to ten targeted AI changes and one full redesign. Treat these as **configurable provisional limits**, not hard-coded promises, until actual model cost and customer usage are measured. Show customers clear remaining revision allowances, not raw tokens. A future advanced “use my own developer API key” feature may be added, but it is not necessary for launch and must not imply a normal ChatGPT/Claude subscription provides API usage.
+
+The current scripted responses to words such as “shorter” and “warmer” must be removed before selling AI revisions.
+
+---
+
+## 7. Final delivery
+
+The approved preview and downloaded website must match.
+
+Provide a polished Delivery Centre with:
+
+- Open full website preview
+- Return to editor
+- Download simple HTML version
+- Download complete website ZIP
+- Download/copy website content and brand details
+- Beginner publishing guide
+- Existing-hosting guide
+- Developer handoff notes
+
+The complete ZIP should contain connected relative files, the final owned/licensed images, styles, any essential scripts, favicon, SEO title and description, image alt text, and a clear README. If bump 1 was purchased, all extra pages must be connected by working navigation within the same package.
+
+The three publishing choices must **open real guidance**. They are currently decorative buttons. Explain how to preview the file, what static hosting is, how to give it to a developer, and what to ask an existing host. Make compatibility limitations clear: a static HTML package will not automatically become an editable Wix or Squarespace project.
+
+Static pages may link to an external booking tool, calendar, payment link, WhatsApp, email or customer-provided form. Do not promise that a plain HTML contact form stores submissions or sends email without a connected service.
+
+---
+
+## 8. Bump 1: Extra Pages
+
+This must extend the **same website project**, reusing its business profile, design system, brand assets, editor and export.
+
+Let the customer choose from suitable dedicated pages, with recommendations based on their business: Services, About, Classes/Timetable, Online Coaching, Programme, Results, Pricing, FAQ or Contact/Booking.
+
+Each page needs deeper, distinct content. Do not simply copy sections off the homepage. The homepage remains complete for customers who do not buy the bump.
+
+**Open decision:** current portal copy says two additional pages; a later recommendation was three. Make the count configurable in the owner’s product settings and do not publish bump 1 sales copy until the owner confirms the final page count and price.
+
+Bump 2 remains undecided. Do not implement a generic spreadsheet merely to fill the slot.
+
+---
+
+## 9. Upsell 1: $47 Campaign Studio
+
+This is the successor to the old standalone Comeback Campaign idea. It must use the saved business profile, website offer, voice, assets and links.
+
+Present clear campaign objectives, including:
+
+- Attract new clients
+- Fill PT appointments
+- Fill classes
+- Promote online coaching
+- Launch a new service
+- Promote a trial or introductory offer
+- Launch a challenge or event
+- Follow up old enquiries
+- Recover lost leads
+- Bring former clients back
+- Encourage renewals
+- Generate referrals
+- Fill last-minute availability
+- Promote a programme
+- Custom campaign
+
+Recommend the most relevant objective but let the buyer choose. Each campaign should be personalised to that business and produce an actionable package: offer angle, channel-specific copy, posts, story/reel ideas, email/message copy where appropriate, follow-up/reply guidance, schedule and a destination on their website.
+
+This product is **not an automated sender or CRM** in its first version. The customer reviews, copies, downloads and sends using their existing platforms. Campaign generation and revisions require their own configurable usage allowance. Do not sell it as merely “15 buttons” or a quantity of scripts.
+
+---
+
+## 10. Upsell 2: $97 Meta Ad Launch Pack
+
+This is a more substantial paid-traffic package, not just AI-written captions.
+
+Use the same profile plus a short ad-specific intake: service, offer, goal, location, budget, capacity, audience, photos, proof and conversion destination.
+
+Output should include:
+
+- Recommended campaign/offer strategy
+- Several genuinely different ad angles
+- Primary text, headlines, descriptions and CTA variants
+- Branded feed and story creative that is actually downloadable
+- Creative/copy pairing
+- A matching, separately saved website or landing-page variation
+- Launch instructions and tracking checklist
+- Plain-language guidance on what to monitor and when to change an ad
+
+The customer launches ads in their own Meta account. Do not promise to connect, spend from or manage their ad account at $97. Do not call an image “finished creative” if the app only outputs a written design brief.
+
+This module must have its own entitlement, usage limits and quality tests. Keep it locked and unsold until it produces deliverables worthy of the price.
+
+---
+
+## 11. Owner/admin side — required, not optional
+
+Greg’s template has a real staff/admin concept. The new portal needs a **separate owner workspace**, not a public “dev mode” button.
+
+Use authenticated roles such as owner/super-admin, staff and customer. The owner account must be identified deliberately through a secure configured owner email or an explicit admin assignment. Never make the first arbitrary public sign-up an administrator. Check the current authentication code and outdated setup documentation because they describe different bootstrap behaviour.
+
+The owner workspace should include:
+
+**Overview**
+
+- Paid orders and product mix
+- New customers
+- Incomplete briefs
+- Builds queued/running/failed/completed
+- Revision requests
+- Delivery failures
+- Support items needing attention
+- AI cost and usage
+
+**Customers and projects**
+
+- Search customer by email/order
+- See purchased products and access status
+- View brief, assets, site versions, campaign/ad jobs and delivery status
+- Inspect a project’s generated output
+- Retry a failed job
+- Add an internal note
+- Perform an audited manual grant/revoke when support genuinely requires it
+
+**Products and entitlements**
+
+- GHL product identifier → portal product code mapping
+- Price and published status
+- Bump 1 page count
+- Per-product usage limits
+- Locked/coming-soon state
+- Test grants in staging only
+
+**Production controls**
+
+- Job queue and status
+- Prompt and design-system versions
+- Model/provider settings
+- Per-job token and monetary cost
+- Failed-call logs with sensitive data protected
+- Quality-check results
+- Exception-only human review queue
+
+**GHL connection monitor**
+
+- Incoming purchase/refund events
+- Accepted/rejected/duplicate status
+- Order and product mapping
+- Processing errors and safe retry
+- Test-event tool in a non-production environment
+
+**Content and support**
+
+- Publishing guides and FAQs
+- Customer support requests
+- Delivery/email templates
+- Website design systems and allowed imagery
+
+The owner must be able to test all products using **staging test accounts and test purchases** without bypassing production entitlement rules. A “view as customer” preview can be read-only and audited. Do not expose production secrets or customer data through a dev toggle.
+
+Remove or disable unrelated legacy modules and dangerous functionality that does not belong in this offer, including old Comeback-only access rules, masterclass seeds, advertorial content and any legacy AI-driven refund automation. Do not assume every feature in the template is appropriate merely because it is present.
+
+---
+
+## 12. GHL checkout → portal access
+
+Greg’s videos show two distinct connections:
+
+1. **GHL → portal:** purchase and entitlement.
+2. **Portal intake → production worker → portal:** creation and delivery of the website or other purchased output.
+
+Build both. Do not mistake a working purchase webhook for a working fulfilment system.
+
+### Purchase events
+
+Use one secure purchase-event endpoint capable of granting different products. Map the actual GHL products to stable internal codes, for example:
+
+- `website_core`
+- `extra_pages`
+- `campaign_studio`
+- `meta_ad_pack`
+
+Do not create a live `bump_2` product before it is defined.
+
+Configure GHL workflows for confirmed successful purchases, filtered to the relevant product and purchase type. Test primary product, bump and post-purchase upsell separately. HighLevel’s Order Submitted trigger can distinguish primary, bump and upsell purchases; Payment Received can be filtered to successful payments and products. Choose the exact workflow setup after examining real test events, not by assuming every GHL account sends the same payload.
+
+The outbound workflow sends the portal a mapped product code, buyer email, GHL customer/contact ID, order ID, transaction or event ID, status, amount/currency and timestamp. Use a server-side secret/header and HTTPS; never put the secret in a public page or query string.
+
+### Correct entitlement behaviour
+
+- Record each purchased product as a separate line item.
+- Idempotently process duplicate notifications.
+- Do **not** use order ID alone as a unique entitlement key: one order may contain the website and a bump.
+- Match pending purchases to a verified sign-in email.
+- Grant only what was purchased.
+- Revoke or adjust only the affected item on refund or chargeback, including partial refunds where applicable.
+- Keep an audit trail of automatic and manual changes.
+- Never rely only on the sidebar to enforce access; check permissions on server APIs and file downloads too.
+- Send one coherent welcome/access email after the funnel, not an email for every upsell.
+- Handle a customer who buys an upsell before creating their portal account.
+
+The current Comeback-specific webhook and entitlement schema need refactoring. They must not be reused unchanged for this multi-product funnel.
+
+---
+
+## 13. Data, security and cost control
+
+Store customer projects and entitlements in the database; store assets and generated packages in durable object storage. Browser storage may speed up form editing but cannot be the source of truth.
+
+Protect every project and file by account ownership. Validate upload type and size. Keep AI and GHL secrets server-side. Do not log raw API keys. Minimise collection of client health details; this is a website/marketing product, not a medical-record system.
+
+For AI economics:
+
+- Use one structured first-draft generation where practical.
+- Use deterministic design components and inexpensive validation instead of repeated model calls.
+- Cache saved business facts and generated versions.
+- Do not spend tokens when switching design looks, previewing devices or manually editing.
+- Target revisions to the selected section rather than regenerating the whole site.
+- Set per-product and per-customer usage budgets on the server.
+- Record actual cost per generation and revision in admin.
+- Prevent duplicate clicks or retries from creating duplicate paid AI jobs.
+- Do not describe API-backed usage as “unlimited.”
+
+---
+
+## 14. Build order and acceptance tests
+
+Do not present everything as finished after one visual pass.
+
+### Phase 1 — Clean foundation
+
+- Audit and remove obsolete Comeback/masterclass-facing routes and copy.
+- Restore/configure real authentication and the owner/admin role.
+- Replace browser-only project saving with account-based saving.
+- Establish Git/version control so local changes and Replit do not diverge.
+
+### Phase 2 — Deliver the $27 product properly
+
+- Full adaptive brief and durable uploads
+- Interactive page planner
+- Four genuinely distinct design systems
+- Real structured generation and quality checks
+- Complete page editor and version history
+- Accurate preview and complete export package
+- Working publishing guides
+- Owner project/production dashboard
+
+### Phase 3 — Entitlements and GHL
+
+- Secure multi-product purchase event
+- GHL workflows and product mapping
+- Account claiming
+- Locked/unlocked states
+- Welcome email, refund handling and event logs
+
+### Phase 4 — Bump and upsells
+
+- Extra Pages inside the same website project
+- Campaign Studio using the saved profile
+- Meta Ad Launch Pack using the saved brand/site/campaign context
+- Do not turn on checkout sales for a module until its delivery is tested
+
+### Test as at least these fictional customers
+
+- Solo PT in the UK with strong photos and testimonials
+- Online coach in the US with no local address
+- Pilates studio in Australia with classes and a timetable
+- Martial-arts school in Canada with instructors and youth/adult classes
+- New Zealand yoga teacher with no logo, few photos and no testimonials
+
+For each, test brief → save → leave → return → style choice → generate → mobile review → manual edit → AI revision → redesign → approve → download → publish guidance. Confirm outputs are substantively different and appropriate for each niche.
+
+Also test: core-only purchase; core + bump; core + both upsells; duplicate webhook; failed payment; refund; unpurchased direct URL/API access; account email mismatch; interrupted build; failed AI call; missing assets; and download after signing in on a different device.
+
+**Definition of done:** a real customer can pay $27, sign in, supply information, receive a genuinely personalised and attractive full one-page website, make allowed changes, download a working package and understand what to do next—without the owner manually intervening. The owner can see and troubleshoot that order from a private admin workspace.
