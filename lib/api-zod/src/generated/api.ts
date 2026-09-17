@@ -228,6 +228,26 @@ export const RegisterProjectAssetResponse = zod.object({
 })
 
 
+export const GenerateWebsiteProjectParams = zod.object({
+  "projectId": zod.string().uuid()
+})
+
+export const GenerateWebsiteProjectResponse = zod.object({
+  "id": zod.string().uuid(),
+  "userId": zod.string().uuid(),
+  "businessProfileId": zod.string().uuid().nullish(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "currentStage": zod.string(),
+  "briefData": zod.record(zod.string(), zod.unknown()),
+  "styleData": zod.record(zod.string(), zod.unknown()),
+  "sections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "progressData": zod.array(zod.record(zod.string(), zod.unknown())),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })

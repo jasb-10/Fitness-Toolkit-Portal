@@ -155,6 +155,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProjectAsset" }
 
+  /website-projects/{projectId}/generate:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: generateWebsiteProject
+      tags: [dfy]
+      responses:
+        "200":
+          description: Generated website project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteProject" }
+
   /healthz:
     get:
       operationId: healthCheck

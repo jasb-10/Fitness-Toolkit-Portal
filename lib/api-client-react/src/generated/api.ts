@@ -842,6 +842,74 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getRegisterProjectAssetMutationOptions(options));
     }
 
+export const getGenerateWebsiteProjectUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/website-projects/${projectId}/generate`
+}
+
+export const generateWebsiteProject = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<WebsiteProject> => {
+
+  return customFetch<WebsiteProject>(getGenerateWebsiteProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getGenerateWebsiteProjectMutationKey = () => ['generateWebsiteProject'] as const;
+
+export const getGenerateWebsiteProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWebsiteProject>>, TError,GenerateWebsiteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateWebsiteProject>>, TError,GenerateWebsiteProjectMutationVariables, TContext> => {
+
+const mutationKey = getGenerateWebsiteProjectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWebsiteProject>>, GenerateWebsiteProjectMutationVariables> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  generateWebsiteProject(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateWebsiteProjectMutationResult = NonNullable<Awaited<ReturnType<typeof generateWebsiteProject>>>
+
+    export type GenerateWebsiteProjectMutationError = ErrorType<unknown>
+    export type GenerateWebsiteProjectMutationVariables = {projectId: string}
+
+    export const useGenerateWebsiteProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWebsiteProject>>, TError,GenerateWebsiteProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateWebsiteProject>>,
+        TError,
+        GenerateWebsiteProjectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGenerateWebsiteProjectMutationOptions(options));
+    }
+
 export const getHealthCheckUrl = () => {
 
 

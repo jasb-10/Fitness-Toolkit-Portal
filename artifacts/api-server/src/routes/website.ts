@@ -122,4 +122,133 @@ router.post("/website-projects/:projectId/assets", async (req, res: Response) =>
   return res.status(201).json(serializeAsset(asset));
 });
 
+router.post("/website-projects/:projectId/generate", async (req, res: Response) => {
+  const { userId } = req as unknown as AuthedRequest;
+  const { projectId } = uuidParams.parse(req.params);
+  const project = await ownedProject(projectId, userId);
+  if (!project) return res.status(404).json({ error: "Website project not found" });
+
+  const startedAt = new Date();
+  await db.update(websiteProjectsTable).set({
+    status: "generating",
+    currentStage: "building",
+    progressData: [{ step: "generation", status: "running", startedAt: startedAt.toISOString() }],
+    updatedAt: startedAt,
+  }).where(eq(websiteProjectsTable.id, projectId));
+
+  try {
+    const [profile] = await db.select().from(businessProfilesTable)
+      .where(eq(businessProfilesTable.userId, userId)).limit(1);
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
+      max_completion_tokens: 2500,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "fitness_website_draft",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["copy", "sections"],
+            properties: {
+              copy: {
+                type: "object",
+                additionalProperties: false,
+                required: ["headline", "subheadline", "about", "button"],
+                properties: {
+                  headline: { type: "string" },
+                  subheadline: { type: "string" },
+                  about: { type: "string" },
+                  button: { type: "string" },
+                },
+              },
+              sections: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["id", "title", "body"],
+                  properties: {
+                    id: { type: "string" },
+                    title: { type: "string" },
+                    body: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      messages: [
+        {
+          role: "system",
+          content: `Create concise, conversion-focused website copy for a fitness or wellness business.
+Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, or locations.
+Write natural British English, avoid hype, avoid em dashes, and make the call to action match the supplied conversion goal.
+Return JSON only.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            businessProfile: profile ? {
+              businessName: profile.businessName,
+              niche: profile.niche,
+              location: profile.location,
+              service: profile.service,
+              audience: profile.audience,
+              conversionGoal: profile.conversionGoal,
+              evidence: profile.evidenceData,
+            } : null,
+            websiteBrief: project.briefData,
+            selectedStyle: project.styleData,
+          }),
+        },
+      ],
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) throw new Error("Website generator returned no content");
+    const generated = z.object({
+      copy: z.object({
+        headline: z.string().min(1),
+        subheadline: z.string().min(1),
+        about: z.string().min(1),
+        button: z.string().min(1),
+      }),
+      sections: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        body: z.string(),
+      })),
+    }).parse(JSON.parse(content));
+
+    const completedAt = new Date();
+    const [updated] = await db.update(websiteProjectsTable).set({
+      status: "draft_ready",
+      currentStage: "editor",
+      styleData: { ...project.styleData, copy: generated.copy },
+      sections: generated.sections,
+      progressData: [{
+        step: "generation",
+        status: "completed",
+        startedAt: startedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+      }],
+      updatedAt: completedAt,
+    }).where(eq(websiteProjectsTable.id, projectId)).returning();
+    return res.json(serializeProject(updated));
+  } catch (error) {
+    req.log.error({ err: error, projectId }, "Website generation failed");
+    await db.update(websiteProjectsTable).set({
+      status: "generation_failed",
+      currentStage: "direction",
+      progressData: [{ step: "generation", status: "failed", startedAt: startedAt.toISOString() }],
+      updatedAt: new Date(),
+    }).where(eq(websiteProjectsTable.id, projectId));
+    return res.status(502).json({ error: "Website generation failed. Please try again." });
+  }
+});
+
 export default router;

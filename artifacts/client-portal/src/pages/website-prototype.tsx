@@ -7,6 +7,7 @@ import {
   getListWebsiteProjectsQueryKey,
   useRequestUploadUrl,
   useRegisterProjectAsset,
+  useGenerateWebsiteProject,
 } from "@workspace/api-client-react";
 import {
   ArrowLeft,
@@ -205,6 +206,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const updateProject = useUpdateWebsiteProject();
   const requestUrl = useRequestUploadUrl();
   const registerAsset = useRegisterProjectAsset();
+  const generateProject = useGenerateWebsiteProject();
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const initRef = useRef(false);
@@ -315,29 +317,40 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     if (stage !== "building") return;
     setBuildIndex(0);
     const timer = window.setInterval(() => {
-      setBuildIndex((current) => {
-        if (current >= buildStages.length - 1) {
-          window.clearInterval(timer);
-          window.setTimeout(() => setStage("editor"), 650);
-          return current;
-        }
-        return current + 1;
-      });
-    }, 650);
+      setBuildIndex((current) => Math.min(current + 1, buildStages.length - 1));
+    }, 1400);
     return () => window.clearInterval(timer);
   }, [stage]);
 
-  const beginBuild = () => {
+  const beginBuild = async () => {
     const business = brief.businessName || "Your business";
     const service = brief.mainService || "personal coaching";
     const audience = brief.audience || "people who want lasting progress";
-    setCopy({
+    const fallbackCopy = {
       headline: direction === 1 ? `${business}, built around you` : direction === 2 ? `Move with purpose at ${business}` : `${service} for ${audience}`,
       subheadline: `${brief.offer || service} for ${audience}${brief.location ? ` in ${brief.location}` : ""}.`,
       about: brief.differentiator || `At ${business}, your experience, schedule and goals shape the way we work together.`,
       button: brief.goal || "Book a consultation",
-    });
+    };
+    setCopy(fallbackCopy);
     setStage("building");
+    if (!isAuthenticated || !projectId) {
+      window.setTimeout(() => setStage("editor"), 2200);
+      return;
+    }
+    try {
+      const generated = await generateProject.mutateAsync({ projectId });
+      const generatedCopy = (generated.styleData as { copy?: SiteCopy } | null)?.copy;
+      if (generatedCopy) setCopy(generatedCopy);
+      setSavedLabel("Generated and saved");
+      qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
+        current?.map((item) => item.id === generated.id ? generated : item)
+      );
+      setStage("editor");
+    } catch {
+      setSavedLabel("Generation failed");
+      setStage("direction");
+    }
   };
 
   const reset = () => {
@@ -589,7 +602,7 @@ function EditorScreen({ brief, copy, palette, paletteId, setPaletteId, fontStyle
     <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} palette={palette} heroImage={heroImage} direction={direction} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
       <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
       <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select></div>
-      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Ask for a change</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without changing the layout." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} AI changes remaining</span><button onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div><button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-semibold"><RotateCcw className="h-4 w-4" />Restore previous version</button></aside></div>
+      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a quick copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without changing the layout." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} quick edits remaining</span><button onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div><button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-semibold"><RotateCcw className="h-4 w-4" />Restore previous version</button></aside></div>
   </div>;
 }
 
