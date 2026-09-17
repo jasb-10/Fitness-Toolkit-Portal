@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db, productEntitlementsTable, usersTable } from "@workspace/db";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { sendEmail, welcomeEmail, getPortalUrl } from "../lib/email";
 import { recordActivity } from "../lib/activity";
 
@@ -35,23 +35,54 @@ export async function ensureLocalUser(clerkUserId: string) {
     .where(eq(usersTable.clerkId, clerkUserId))
     .limit(1);
   if (existing[0]) {
-    const prev = existing[0].lastLoginAt;
+    let localUser = existing[0];
+    const ownerEmail = process.env.PORTAL_OWNER_EMAIL?.trim().toLowerCase();
+    if (localUser.role !== "super_admin") {
+      localUser = await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext('fitness-toolkit-owner-bootstrap'))`,
+        );
+        const [currentOwner] = await tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.role, "super_admin"))
+          .limit(1);
+        const [firstLinkedAccount] = await tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(sql`${usersTable.clerkId} is not null`)
+          .orderBy(asc(usersTable.createdAt))
+          .limit(1);
+        const shouldOwnPortal =
+          (!currentOwner && firstLinkedAccount?.id === localUser.id) ||
+          (Boolean(ownerEmail) &&
+            localUser.email.toLowerCase() === ownerEmail);
+        if (!shouldOwnPortal) return localUser;
+        const [promoted] = await tx
+          .update(usersTable)
+          .set({ role: "super_admin" })
+          .where(eq(usersTable.id, localUser.id))
+          .returning();
+        return promoted ?? localUser;
+      });
+    }
+    const prev = localUser.lastLoginAt;
     const now = new Date();
     const shouldLog =
       !prev || now.getTime() - prev.getTime() > 30 * 60 * 1000;
     await db
       .update(usersTable)
       .set({ lastLoginAt: now })
-      .where(eq(usersTable.id, existing[0].id));
+      .where(eq(usersTable.id, localUser.id));
     if (shouldLog) {
       void recordActivity({
-        userId: existing[0].id,
+        userId: localUser.id,
         action: "logged_in",
-        target: existing[0].email,
+        target: localUser.email,
       });
     }
-    await claimEmailEntitlements(existing[0].id, existing[0].email);
-    return existing[0];
+    await claimEmailEntitlements(localUser.id, localUser.email);
+    return localUser;
   }
 
   let email = `${clerkUserId}@unknown.local`;
@@ -73,31 +104,47 @@ export async function ensureLocalUser(clerkUserId: string) {
     // Ignore — fallback values used.
   }
 
-  // Public signups are students. The optional owner email is the only account
-  // that may bootstrap administrator access.
+  // The first real Clerk account becomes the portal owner. Seed/demo users have
+  // no Clerk ID, so they do not prevent the owner bootstrap. An explicit owner
+  // email can still grant owner access in either environment.
   const ownerEmail = process.env.PORTAL_OWNER_EMAIL?.trim().toLowerCase();
-  const role = ownerEmail && email.toLowerCase() === ownerEmail
-    ? "super_admin"
-    : "student";
 
   try {
-    const [created] = await db
-      .insert(usersTable)
-      .values({
-        clerkId: clerkUserId,
-        email,
-        name,
-        avatarUrl,
-        role,
-        lastLoginAt: new Date(),
-      })
-      .returning();
+    const created = await db.transaction(async (tx) => {
+      // Serialize first-account checks so two simultaneous signups cannot both
+      // receive owner access.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('fitness-toolkit-owner-bootstrap'))`,
+      );
+      const [linkedAccount] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(sql`${usersTable.clerkId} is not null`)
+        .limit(1);
+      const isConfiguredOwner =
+        Boolean(ownerEmail) && email.toLowerCase() === ownerEmail;
+      const role = isConfiguredOwner || !linkedAccount
+        ? "super_admin"
+        : "student";
+      const [row] = await tx
+        .insert(usersTable)
+        .values({
+          clerkId: clerkUserId,
+          email,
+          name,
+          avatarUrl,
+          role,
+          lastLoginAt: new Date(),
+        })
+        .returning();
+      return row;
+    });
     if (created && email && !email.endsWith("@unknown.local")) {
       await claimEmailEntitlements(created.id, email);
       const tpl = welcomeEmail({
         name,
         portalUrl: getPortalUrl(),
-        isFirstAdmin: role === "super_admin",
+        isFirstAdmin: created.role === "super_admin",
       });
       void sendEmail({ to: email, ...tpl }).catch(() => {});
     }
