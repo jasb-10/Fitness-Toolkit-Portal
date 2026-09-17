@@ -62,10 +62,7 @@ const upgradesNav: NavItem[] = [
   { label: "Extra Pages", href: "/extra-pages", icon: FileText, note: "Bump 1" },
 ];
 
-const growthNav: NavItem[] = [
-  { label: "Campaign Studio", href: "/campaign-studio", icon: LayoutTemplate, note: "Upsell 1" },
-  { label: "Meta Ads", href: "/meta-ads", icon: Sparkles, note: "Upsell 2" },
-];
+const growthNav: NavItem[] = [];
 
 function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const [loc] = useLocation();

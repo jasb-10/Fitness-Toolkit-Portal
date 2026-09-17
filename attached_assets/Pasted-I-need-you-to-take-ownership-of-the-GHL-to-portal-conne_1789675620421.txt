@@ -1,0 +1,22 @@
+I need you to take ownership of the GHL-to-portal connection. I am not technical, so please do not just tell me to “set up webhooks.” Build the Replit side, then give me exact, click-by-click instructions for anything I must do inside my GHL account.
+
+The required result is simple: a customer buys through my GHL funnel, receives one secure Fitness Toolkit account, and sees exactly the products they paid for. A later bump or upsell must unlock in that same account without another registration.
+
+The products to map are:
+- $27 personalised website: main product
+- Extra Pages: Bump 1
+- Bump 2: undecided; do not activate or sell it
+- $47 Campaign Studio: Upsell 1
+- $97 Meta Ad Launch Pack: Upsell 2
+
+Please implement this in phases:
+
+1. Build a secure purchase-receiving endpoint and a product-mapping table in Replit. GHL must send a separate event for each purchased product. Record every event, verify it, prevent duplicate fulfilment, and handle bumps/upsells arriving after or before the core event.
+2. On a successful core purchase, provision the buyer and send a secure account-activation email. Do not expose public product access or ask the buyer to create an unrelated account. Existing buyers should use their existing account.
+3. Grant each purchased product independently. An unpaid, failed or refunded product must not remain incorrectly unlocked.
+4. Give me an owner screen showing GHL connection status, purchases received, products unlocked, activation-email status, failures and a safe retry button. Remove the irrelevant course metrics.
+5. Explain whether a GHL Private Integration is actually needed. My understanding is that the GHL outbound purchase webhook tells Replit what was bought; a Private Integration is only needed if Replit must query or update GHL through its API. Use the smallest permissions necessary, and have me enter any token privately into Replit Secrets—not into this chat.
+6. Give me the exact GHL setup steps: which products/IDs you need, which workflow triggers and filters to create, the webhook URL, header and fields to map, and how to test each main-product, bump and upsell purchase. Please tell me what you have already built before asking me to change GHL.
+7. Run end-to-end test purchases with me and show the result in both GHL workflow history and the owner portal. Do not call the integration complete because a webhook endpoint exists; it is complete only when purchase → account activation → correct unlock works.
+
+Please start with the $27 website and Extra Pages bump. The other upsells should use the same connection pattern, but must not be sold as working products until their deliverables are ready. Preserve my current owner login throughout.

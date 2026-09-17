@@ -13,6 +13,7 @@ import eventsRouter from "./events";
 import invoicesRouter from "./invoices";
 import comebackRouter from "./comeback";
 import websiteRouter from "./website";
+import ghlRouter from "./ghl";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,7 @@ router.use(storageRouter);
 router.use(eventsRouter);
 router.use(invoicesRouter);
 router.use(comebackRouter);
-  router.use(websiteRouter);
+router.use(websiteRouter);
+router.use(ghlRouter);
 
 export default router;

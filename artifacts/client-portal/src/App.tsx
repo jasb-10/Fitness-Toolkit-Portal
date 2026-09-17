@@ -41,6 +41,7 @@ import AdminCoursesPage from "@/pages/admin-courses";
 import AdminCourseEditPage from "@/pages/admin-course-edit";
 import AdminTeamPage from "@/pages/admin-team";
 import AdminSupportPage from "@/pages/admin-support";
+import AdminGhlPage from "@/pages/admin-ghl";
 import Upsell1Page from "@/pages/upsell-1";
 import Upsell2Page from "@/pages/upsell-2";
 import ExtraPagesPage from "@/pages/extra-pages";
@@ -270,6 +271,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/admin/users">
               <Protected><AdminOnly><AdminUsersPage /></AdminOnly></Protected>
+            </Route>
+            <Route path="/admin/ghl">
+              <Protected><AdminOnly><AdminGhlPage /></AdminOnly></Protected>
             </Route>
             <Route path="/admin/users/:userId">
               {(p) => (

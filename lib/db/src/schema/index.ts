@@ -412,11 +412,47 @@ export const productEntitlementsTable = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    orderUnique: uniqueIndex("product_entitlements_order_unique").on(
+    orderProductUnique: uniqueIndex("product_entitlements_order_product_unique").on(
       t.externalOrderId,
+      t.productCode,
     ),
     userIdx: index("product_entitlements_user_idx").on(t.userId),
     emailIdx: index("product_entitlements_email_idx").on(t.purchaserEmail),
+  }),
+);
+
+export const ghlProductMappingsTable = pgTable("ghl_product_mappings", {
+  productCode: text("product_code").primaryKey(),
+  productName: text("product_name").notNull(),
+  priceCents: integer("price_cents").notNull(),
+  externalProductId: text("external_product_id").unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  deliverableReady: boolean("deliverable_ready").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ghlPurchaseEventsTable = pgTable(
+  "ghl_purchase_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: text("event_id").notNull().unique(),
+    orderId: text("order_id").notNull(),
+    contactId: text("contact_id"),
+    purchaserEmail: text("purchaser_email").notNull(),
+    externalProductId: text("external_product_id").notNull(),
+    productCode: text("product_code"),
+    eventType: text("event_type").notNull(),
+    processingStatus: text("processing_status").notNull().default("received"),
+    activationStatus: text("activation_status").notNull().default("not_required"),
+    error: text("error"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    receivedIdx: index("ghl_purchase_events_received_idx").on(t.receivedAt),
+    emailIdx: index("ghl_purchase_events_email_idx").on(t.purchaserEmail),
+    statusIdx: index("ghl_purchase_events_status_idx").on(t.processingStatus),
   }),
 );
 
