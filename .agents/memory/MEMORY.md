@@ -1,1 +1,2 @@
 - [Orval Zod compatibility](orval-zod-compatibility.md) — generated validators require a maintained Zod 3 compatibility rewrite after code generation.
+- [Clerk identity across environments](clerk-environment-identities.md) — the same verified email can receive different Clerk IDs in preview and production.

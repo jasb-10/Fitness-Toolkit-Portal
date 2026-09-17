@@ -103,6 +103,28 @@ export async function ensureLocalUser(clerkUserId: string) {
       email.split("@")[0] ||
       "New Member";
     avatarUrl = cu.imageUrl ?? null;
+
+    const primaryEmailVerified =
+      cu.primaryEmailAddress?.verification?.status === "verified";
+    if (primaryEmailVerified && !email.endsWith("@unknown.local")) {
+      const [sameEmailUser] = await db
+        .select()
+        .from(usersTable)
+        .where(sql`lower(${usersTable.email}) = ${email.toLowerCase()}`)
+        .limit(1);
+      if (sameEmailUser && sameEmailUser.clerkId !== clerkUserId) {
+        await db
+          .update(usersTable)
+          .set({
+            clerkId: clerkUserId,
+            name,
+            avatarUrl,
+            lastLoginAt: new Date(),
+          })
+          .where(eq(usersTable.id, sameEmailUser.id));
+        return ensureLocalUser(clerkUserId);
+      }
+    }
   } catch {
     // Ignore — fallback values used.
   }
