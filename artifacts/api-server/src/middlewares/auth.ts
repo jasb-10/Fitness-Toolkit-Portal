@@ -23,6 +23,43 @@ export function isCustomerRole(role: string): boolean {
   return role === "customer" || role === "student";
 }
 
+export const PRODUCT_CODES = {
+  website: "fitness-website-core",
+  extraPages: "fitness-extra-pages",
+  campaignStudio: "fitness-campaign-studio",
+  metaAds: "fitness-meta-ads",
+} as const;
+
+export async function hasProductEntitlement(
+  userId: string,
+  userRole: string,
+  productCode: string,
+) {
+  if (isStaffRole(userRole)) return true;
+  const [entitlement] = await db
+    .select({ id: productEntitlementsTable.id })
+    .from(productEntitlementsTable)
+    .where(
+      and(
+        eq(productEntitlementsTable.userId, userId),
+        eq(productEntitlementsTable.productCode, productCode),
+        eq(productEntitlementsTable.status, "active"),
+      ),
+    )
+    .limit(1);
+  return Boolean(entitlement);
+}
+
+export function requireProductEntitlement(productCode: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const ar = req as AuthedRequest;
+    if (await hasProductEntitlement(ar.userId, ar.userRole, productCode)) {
+      return next();
+    }
+    return res.status(403).json({ error: "Purchased product access required" });
+  };
+}
+
 async function claimEmailEntitlements(userId: string, email: string) {
   if (!email || email.endsWith("@unknown.local")) return;
   try {

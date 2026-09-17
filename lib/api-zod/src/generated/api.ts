@@ -267,6 +267,7 @@ export const GetMeResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "lastLoginAt": zod.coerce.date().nullish()
 }),
+  "entitlements": zod.array(zod.string()),
   "totalLessons": zod.number().int(),
   "completedLessons": zod.number().int()
 })

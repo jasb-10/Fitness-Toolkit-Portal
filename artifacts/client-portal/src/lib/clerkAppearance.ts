@@ -43,7 +43,7 @@ export const clerkAppearance = {
     logoImage: "h-9 w-auto",
     formButtonPrimary: "bg-[#ed633b] hover:bg-[#d95431] text-white font-medium rounded-lg shadow-none normal-case tracking-normal",
     formFieldInput: "border border-[#dedbd2] bg-[#fbfaf5] text-[#202736] rounded-lg focus:border-[#ed633b] focus:ring-0",
-    footerAction: "py-3",
+    footerAction: "hidden",
     alert: "border border-[#dedbd2] bg-[#f1eee6] text-[#202736]",
     otpCodeFieldInput: "border border-[#dedbd2] bg-[#fbfaf5] text-[#202736] rounded-lg",
     formFieldRow: "gap-1",

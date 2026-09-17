@@ -164,6 +164,7 @@ export interface User {
 
 export interface MeResponse {
   user: User;
+  entitlements: string[];
   totalLessons: number;
   completedLessons: number;
 }

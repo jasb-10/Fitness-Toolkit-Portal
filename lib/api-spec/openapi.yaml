@@ -1244,9 +1244,12 @@ components:
 
     MeResponse:
       type: object
-      required: [user, totalLessons, completedLessons]
+      required: [user, entitlements, totalLessons, completedLessons]
       properties:
         user: { $ref: "#/components/schemas/User" }
+        entitlements:
+          type: array
+          items: { type: string }
         totalLessons: { type: integer }
         completedLessons: { type: integer }
 

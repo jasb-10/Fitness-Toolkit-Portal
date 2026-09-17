@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import {
   ClerkProvider,
   SignIn,
-  SignUp,
   Show,
   useClerk,
   useUser,
@@ -23,7 +22,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/queryClient";
 import { clerkAppearance } from "@/lib/clerkAppearance";
-import { basePath } from "@/lib/utils";
+import { basePath, isStaff } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
 
@@ -69,12 +68,27 @@ function HomeRoute() {
   return (
     <>
       <Show when="signed-in">
-        <Redirect to="/website" />
+        <Redirect to="/dashboard" />
       </Show>
       <Show when="signed-out">
-        <WebsitePrototypePage />
+        <AccessLanding />
       </Show>
     </>
+  );
+}
+
+function AccessLanding() {
+  return (
+    <div className="portal-noise grid min-h-[100dvh] place-items-center bg-sidebar px-5 text-sidebar-foreground">
+      <div className="w-full max-w-xl text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-2xl font-black italic text-primary-foreground">F</div>
+        <div className="mt-6 text-[10px] font-bold uppercase tracking-[.25em] text-primary">Fitness Toolkit customer portal</div>
+        <h1 className="mt-4 font-display text-5xl font-semibold tracking-[-.05em] sm:text-6xl">Your purchased tools, in one secure place.</h1>
+        <p className="mx-auto mt-5 max-w-md text-sm leading-7 text-sidebar-foreground/60">Access is created after a verified purchase. Use the email address linked to your order to sign in or recover your account.</p>
+        <a href={`${basePath}/sign-in`} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-4 text-sm font-bold text-primary-foreground shadow-[0_14px_40px_rgba(239,22,47,.28)]">Sign in to my account <ArrowRight className="h-4 w-4" /></a>
+        <p className="mt-5 text-xs text-sidebar-foreground/40">There is no public registration. Customer access is issued after purchase.</p>
+      </div>
+    </div>
   );
 }
 
@@ -111,6 +125,31 @@ function Protected({ children }: { children: React.ReactNode }) {
   );
 }
 
+const PRODUCT_CODES = {
+  website: "fitness-website-core",
+  extraPages: "fitness-extra-pages",
+  campaignStudio: "fitness-campaign-studio",
+  metaAds: "fitness-meta-ads",
+} as const;
+
+function ProductGate({ productCode, productName, children }: { productCode: string; productName: string; children: React.ReactNode }) {
+  const { data, isLoading } = useGetMe();
+  if (isLoading) return <div className="grid min-h-[100dvh] place-items-center bg-background text-sm text-muted-foreground">Checking account access…</div>;
+  if (data && (isStaff(data.user.role) || data.entitlements.includes(productCode))) return <>{children}</>;
+  return (
+    <AppShell>
+      <div className="grid min-h-[70dvh] place-items-center px-5 py-12">
+        <div className="max-w-lg rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
+          <ShieldCheck className="mx-auto h-10 w-10 text-primary" />
+          <h1 className="mt-5 font-display text-3xl font-semibold">Purchase access required</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{productName} is not active on this account. Sign in with the email used at checkout, or contact support if you have already purchased it.</p>
+          <a href={`${basePath}/support`} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Get access help <ArrowRight className="h-4 w-4" /></a>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
 function PageViewTracker() {
   const [path] = useLocation();
   useEffect(() => {
@@ -125,16 +164,10 @@ function PageViewTracker() {
 function SignInPage() {
   // To update login providers, app branding, or OAuth settings use the Auth
   // pane in the workspace toolbar. More information can be found in the Replit docs.
-  return <AuthFrame mode="sign-in"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></AuthFrame>;
+  return <AuthFrame><SignIn routing="path" path={`${basePath}/sign-in`} /></AuthFrame>;
 }
 
-function SignUpPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
-  return <AuthFrame mode="sign-up"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></AuthFrame>;
-}
-
-function AuthFrame({ mode, children }: { mode: "sign-in" | "sign-up"; children: React.ReactNode }) {
+function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="portal-noise grid min-h-[100dvh] bg-background lg:grid-cols-[1.05fr_.95fr]">
       <div className="relative hidden overflow-hidden bg-sidebar p-10 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
@@ -144,7 +177,7 @@ function AuthFrame({ mode, children }: { mode: "sign-in" | "sign-up"; children: 
         <div className="relative max-w-lg pb-8"><div className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-accent"><Activity className="h-4 w-4" /> Welcome to the platform</div><h1 className="font-display text-6xl font-semibold leading-[.95] tracking-[-.06em]">Make the next move count.</h1><p className="mt-6 max-w-md text-base leading-7 text-sidebar-foreground/65">Build your online presence and run a business you are proud of.</p><div className="mt-8 flex items-center gap-3 text-sm text-sidebar-foreground/55"><ShieldCheck className="h-4 w-4 text-accent" /> A clear place for your business growth</div></div>
         <div className="relative flex items-center gap-2 text-xs text-sidebar-foreground/40">Fitness Toolkit Portal <ArrowRight className="h-3.5 w-3.5" /> Start where you are</div>
       </div>
-      <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-8"><div className="w-full max-w-[440px]"><div className="mb-8 flex items-center gap-3 lg:hidden"><div className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-bold text-primary-foreground">F</div><span className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</span></div><div className="mb-6"><div className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">{mode === "sign-in" ? "Welcome back" : "Your workspace starts here"}</div><h2 className="mt-2 font-display text-3xl font-semibold tracking-[-.04em]">{mode === "sign-in" ? "Pick up where you left off." : "Start building."}</h2></div>{children}</div></div>
+        <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-8"><div className="w-full max-w-[440px]"><div className="mb-8 flex items-center gap-3 lg:hidden"><div className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-bold text-primary-foreground">F</div><span className="text-sm font-bold tracking-[.14em]">FITNESS TOOLKIT</span></div><div className="mb-6"><div className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">Secure customer access</div><h2 className="mt-2 font-display text-3xl font-semibold tracking-[-.04em]">Pick up where you left off.</h2><p className="mt-2 text-sm text-muted-foreground">Use your purchase email. New accounts are issued after checkout.</p></div>{children}</div></div>
     </div>
   );
 }
@@ -168,35 +201,17 @@ function ClerkQueryClientCacheInvalidator() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
-  // The design preview is intentionally usable before account and API setup.
-  if (window.location.pathname.startsWith("/preview")) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WebsitePrototypePage />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
       localization={{
         signIn: {
           start: {
             title: "Welcome back",
             subtitle: "Sign in to continue your work",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Create your account",
-            subtitle: "Begin where you left off",
           },
         },
       }}
@@ -207,12 +222,10 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           <Switch>
-            <Route path="/preview/*?">
-              <WebsitePrototypePage />
-            </Route>
+            <Route path="/preview/*?"><Redirect to="/sign-in" /></Route>
             <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
 
             <Route path="/dashboard">
               <Protected><DashboardPage /></Protected>
@@ -221,7 +234,7 @@ function ClerkProviderWithRoutes() {
               <Protected><BusinessProfilePage /></Protected>
             </Route>
             <Route path="/website">
-              <Protected><WebsiteBuilderRoute /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.website} productName="Personalised Website"><WebsiteBuilderRoute /></ProductGate></Protected>
             </Route>
             <Route path="/comeback/*?">
               <Redirect to="/website" />
@@ -284,19 +297,19 @@ function ClerkProviderWithRoutes() {
             </Route>
 
             <Route path="/upsell-1">
-              <Protected><Upsell1Page /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.campaignStudio} productName="Campaign Studio"><Upsell1Page /></ProductGate></Protected>
             </Route>
             <Route path="/upsell-2">
-              <Protected><Upsell2Page /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.metaAds} productName="Meta Ad Launch Pack"><Upsell2Page /></ProductGate></Protected>
             </Route>
             <Route path="/extra-pages">
-              <Protected><ExtraPagesPage /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.extraPages} productName="Extra Pages"><ExtraPagesPage /></ProductGate></Protected>
             </Route>
             <Route path="/campaign-studio">
-              <Protected><Upsell1Page /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.campaignStudio} productName="Campaign Studio"><Upsell1Page /></ProductGate></Protected>
             </Route>
             <Route path="/meta-ads">
-              <Protected><Upsell2Page /></Protected>
+              <Protected><ProductGate productCode={PRODUCT_CODES.metaAds} productName="Meta Ad Launch Pack"><Upsell2Page /></ProductGate></Protected>
             </Route>
             <Route path="/support">
               <Protected><SupportPage /></Protected>

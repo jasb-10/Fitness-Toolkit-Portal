@@ -9,6 +9,7 @@ import {
   lessonsTable,
   lessonProgressTable,
   dfyProjectsTable,
+  productEntitlementsTable,
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -49,8 +50,18 @@ router.get("/me", async (req, res: Response) => {
     .where(eq(usersTable.id, ar.userId));
   if (!u) return res.status(404).json({ error: "Not found" });
   const summary = await getProgressSummary(ar.userId, ar.userRole);
+  const entitlements = await db
+    .select({ productCode: productEntitlementsTable.productCode })
+    .from(productEntitlementsTable)
+    .where(
+      and(
+        eq(productEntitlementsTable.userId, ar.userId),
+        eq(productEntitlementsTable.status, "active"),
+      ),
+    );
   res.json({
     user: serializeUser(u),
+    entitlements: entitlements.map((item) => item.productCode),
     totalLessons: summary.totalLessons,
     completedLessons: summary.completedLessons,
   });

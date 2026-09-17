@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { db, projectAssetsTable, websiteProjectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { isStaffRole, requireAuth, type AuthedRequest } from "../middlewares/auth";
+import { PRODUCT_CODES, isStaffRole, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -22,7 +22,7 @@ const requestUploadUrlBody = z.object({
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
  */
-router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
+router.post("/storage/uploads/request-url", requireAuth, requireProductEntitlement(PRODUCT_CODES.website), async (req: Request, res: Response) => {
   const parsed = requestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
@@ -99,7 +99,7 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * These are served from a separate path from /public-objects and can optionally
  * be protected with authentication or ACL checks based on the use case.
  */
-router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Response) => {
+router.get("/storage/objects/*path", requireAuth, requireProductEntitlement(PRODUCT_CODES.website), async (req: Request, res: Response) => {
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;

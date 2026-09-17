@@ -1,0 +1,159 @@
+# Fitness Toolkit Portal — complete production brief for Replit
+
+Please read this as the specification for the **whole business system**, not a request to add a few screens. The current portal has improved visually, but it is not ready to sell. The first priorities are secure access, GHL purchase fulfilment, a genuine high-quality website product, and an owner workspace that lets me operate and troubleshoot it.
+
+## 1. The business model
+
+I sell through a GoHighLevel (GHL) funnel. Customers see a sales page, buy the main offer, can accept two order bumps, and then see two one-time upsells. They should receive access to **one Fitness Toolkit account** containing only what they purchased.
+
+The planned ladder is:
+
+| Product | Role in funnel | Customer outcome |
+|---|---|---|
+| Personalised one-page website — $27 | Main offer | A beautiful, editable, ready-to-publish fitness-business website, delivered as website files. Hosting, domain registration and installation are not included. |
+| Extra Pages — Bump 1 | Add-on | Additional pages connected to the **same** website, brand and navigation. The exact page count must be confirmed before checkout; the current portal says four, while earlier planning considered two. Do not hardcode an unapproved promise. |
+| Bump 2 | Undecided | Reserve a product ID and entitlement capability, but do not display it as “to be decided” or sell it. |
+| Campaign Studio — $47 upsell | Growth product | Personalised campaign materials based on the saved business profile, offer and audience. Customers review and send through their own platforms. No CRM or automatic sending. |
+| Meta Ad Launch Pack — $97 upsell | Growth product | Personalised ad strategy, copy, creative deliverables, matching page variation and launch guidance. Customers run the ads in their own account. |
+
+This is not a course business, not a full CRM, and not a generic “press a button for GPT copy” product. The competitive advantage is a polished, personal outcome delivered with minimal manual work.
+
+GHL owns the funnel and payments. The Replit app owns customer identity, purchased-product access, intake, generation, editing, files, delivery and support. The products should share one business profile so the customer is not repeatedly asked for the same information.
+
+## 2. Critical access/security fix — do this first
+
+I have observed that after logging out, the app can still be used without logging in. I also cannot reliably log back in to verify the account. This is a launch-blocking defect.
+
+Required behaviour:
+
+- Every customer page, generation action, project, file and download must require a valid authenticated session **and** the relevant purchased-product entitlement. Hiding a button is not security; enforce this on the server for all APIs and files.
+- An unauthenticated visitor to `/dashboard`, `/business`, `/website`, `/extra-pages`, `/campaign-studio`, `/meta-ads` or `/admin` must be sent to the login screen. They must not see or use the product.
+- A logged-in person without a purchase must not use the $27 builder merely because they created a login.
+- There must be **no public “Create an account with your email” route** for buyers. Accounts are provisioned following a valid GHL purchase. The buyer then receives a secure, single-use activation link to verify their email and set their password. Never email a generated password.
+- There must still be a normal login page, password reset, email verification, session expiry and account-recovery flow. “No public sign-up” does **not** mean “no login.”
+- My owner account is a special, manually configured role. Preserve it and give me a tested recovery route so a logout does not lock me out. Do not make the first random public registrant the owner.
+- If the existing authentication provider is retained, configure it for invitation-only buyer activation. If it cannot enforce this cleanly, explain the limitation before replacing it.
+- Test fresh and expired sessions, private/incognito browser, direct URLs, API calls and downloads. Do not treat the visible sidebar as the access-control layer.
+
+Before making further product changes, show me a demonstration of: logged out → blocked; paid buyer → activation → login → purchased product unlocked; unpaid user → blocked; owner → can log back in and reach admin.
+
+## 3. What Greg’s portal videos mean for this build
+
+Greg’s videos showed a Replit portal template connected to GHL. The key idea is **two separate connections**, not one magic integration:
+
+**Purchase connection:** GHL detects which item was bought and sends the purchase details to the portal. The portal creates or finds the customer account and grants the specific product.
+
+**Delivery connection:** The customer supplies information in the portal. A worker/AI process creates the purchased deliverable and returns it to that customer’s portal project for review, editing and download.
+
+The Replit template supplies a starting structure—accounts, portal pages, admin concepts and webhook patterns. It does not automatically provide a finished fitness website product, correct GHL product mapping, buyer-only access or quality assurance. Please adapt the template to this offer rather than leaving the original course and lesson machinery in place.
+
+## 4. Exact GHL → portal purchase flow
+
+Build and document the following end-to-end workflow.
+
+### In GHL
+
+1. Create a distinct GHL product/price for each sellable item: core website, Extra Pages, Campaign Studio and Meta Ads. Add Bump 2 only when its offer is decided.
+2. Configure the funnel checkout, bump and upsell steps. Record the actual GHL product IDs, price IDs, funnel ID and sub-account/location ID in a product-mapping table.
+3. Use product-specific **Order Submitted** workflow triggers where appropriate for the funnel. Filter to the relevant product and submission type (primary, bump or upsell). Enable **Allow Multiple**, so the same contact can enter again when buying an upsell shortly after the main product. Avoid a wait step that blocks subsequent purchase events. Verify this in GHL workflow history with real test transactions. GHL documents these primary/bump/upsell triggers and the Allow Multiple requirement. [HighLevel Order Submitted documentation](https://help.gohighlevel.com/support/solutions/articles/155000003535-trigger-order-submitted)
+4. Send an outbound **Custom Webhook** from each purchase workflow to the Replit backend using HTTPS, JSON and a secret in a header—not a secret in the URL. GHL supports custom headers and JSON payloads. [HighLevel Custom Webhook documentation](https://help.gohighlevel.com/support/solutions/articles/155000003305/)
+5. Map the available order/contact values into a documented payload: location ID, contact ID, customer email and name, order ID, transaction/payment ID if available, purchased GHL product/price ID, purchase type, paid amount/currency, payment status and event time.
+6. Do not grant access merely because a form was submitted. Check that the purchase was successfully paid. If the chosen Order Submitted event does not give sufficiently reliable payment confirmation for this exact funnel, use GHL’s successful **Payment Received** trigger or verify the transaction via the GHL API. Test this instead of guessing. [HighLevel Payment Received documentation](https://help.gohighlevel.com/support/solutions/articles/155000003534-trigger-payment-received)
+7. Configure a separate refund workflow and policy. A successful full or partial refund must be recorded and handled against the correct product, not indiscriminately against the whole account. GHL’s Refund trigger applies when the refund is processed through GHL; document a manual reconciliation route for refunds made elsewhere. [HighLevel Refund documentation](https://help.gohighlevel.com/support/solutions/articles/155000003537-trigger-refund)
+
+### In the Replit backend
+
+1. Expose a dedicated purchase-webhook endpoint. Validate the shared secret, required fields, product mapping and payment status. Reject unrecognised products.
+2. Save every received event and its processing outcome so I can see it in admin. Respond promptly, then perform slower provisioning through a job if needed.
+3. Make fulfilment idempotent. Duplicate webhook deliveries must not create duplicate accounts, entitlements or generation jobs. The uniqueness logic must distinguish products in the same order; **order ID alone is insufficient** when a bump and core item belong to that order.
+4. Find the buyer by the stable GHL contact ID and verified email; safely handle an existing account. Do not silently merge conflicting identities just because two records share a similar name.
+5. If the core offer is purchased, provision the buyer and issue a single-use activation link. If a bump or upsell event arrives first, store it and attach it when the account exists. Do not create a second account for each purchase.
+6. Grant each purchased product independently. Core only unlocks the website. Extra Pages unlocks that extension. Campaign Studio and Meta Ads unlock only when purchased. A refund adjusts the appropriate entitlement according to the documented policy.
+7. Send a clear activation/delivery email with the portal link. GHL can send the purchase receipt; the portal or auth provider can send the secure activation email. Choose one owner for each email so buyers do not receive confusing duplicates.
+8. Provide retries and an owner-visible error queue for missing email, invalid product mapping, duplicate event, failed account provisioning, email delivery failure and out-of-order upsells.
+
+### Private Integration: its separate purpose
+
+A **GHL Private Integration Token (PIT)** is not the same thing as the outbound purchase webhook. The webhook can notify Replit of a purchase without giving Replit broad API access to GHL. Add a Private Integration only where the app must call GHL’s API—for example, to verify an order/payment, look up a contact, write the portal link/status back to GHL or reconcile missed events.
+
+If API access is used, create a dedicated Private Integration for this portal in the appropriate GHL location, give it only the required scopes, and keep the token in Replit’s server-side secrets. Never place it in browser code, a shared prompt, logs or an admin page that displays its value. Document exactly which API calls need which scopes. HighLevel recommends scoped Private Integrations over legacy broad API keys. [HighLevel Private Integration guidance](https://help.gohighlevel.com/support/solutions/articles/155000003054-private-integrations-everything-you-need-to-know)
+
+Please tell me which actions require my participation in GHL, which Replit can configure, what secrets I need to enter privately, and how we will safely test each connection.
+
+## 5. The customer journey after purchase
+
+The customer receives their access email, verifies their email, sets a password and signs in. They land in one cohesive Fitness Toolkit portal.
+
+The sidebar should contain Home, My Business, My Website, purchased upgrades, Help and Account Settings. Locked upgrades may be visible with honest descriptions; unfinished products must not be presented as functional. Do not show course terminology.
+
+The customer completes a reusable **My Business** profile: niche/business model, location and country, ideal client, services and offers, main conversion goal, booking/enquiry URL, differentiator, real proof, qualifications, voice, brand colours, logo, photos and existing website/social references. Keep the initial experience manageable with progressive questions, but ask enough to produce a genuinely personal result. The profile should save to the customer account and feed the website and later products.
+
+The website journey then needs:
+
+1. Adaptive website brief and assets.
+2. Section plan recommended for that business, with the customer able to add/remove/reorder sections.
+3. Four meaningfully different full-page design directions: Bold Performance, Editorial Calm, Natural Studio and Modern Clarity. “Design it for me” and “Use my brand” should be helpful paths, not generic shortcuts.
+4. Real generation job and honest progress/status, not a timer pretending to conduct mobile, SEO and performance checks.
+5. A high-quality full-page desktop and mobile preview.
+6. Comprehensive manual editing and a limited allowance of targeted AI revisions.
+7. Approval and a complete downloadable package with publishing guidance.
+
+Do not invent testimonials, transformations, credentials, results, prices or scarcity. Ask for evidence or omit those sections.
+
+## 6. Product quality and automation standard
+
+The current website prototype has a good presentation layer, but the $27 customer is buying the **finished website**, not the animation around it. Use a controlled, high-quality component/design system combined with AI-generated structured content. Do not ask a language model to regenerate an entire arbitrary site for every small edit. That makes quality, cost and revisions unpredictable.
+
+The generated website should have strong above-the-fold hierarchy, thoughtful typography, suitable imagery, meaningful section order, a clear offer and CTA, believable proof, and careful mobile composition. A solo PT, gym/studio, Pilates teacher, online coach and wellness practice should not receive essentially the same page with nouns changed.
+
+Customers must be able to edit all displayed text, CTAs/links, images and included sections. Manual edits should not consume AI credits. AI revisions should be targeted and versioned. A failed generation or revision must not consume an allowance. Provide real undo/restore.
+
+Images must be owned, properly licensed or generated with usable rights. The final website must not rely on the current external demonstration photo. Package assets locally where possible. Validate that the exported site opens independently of the portal, that links work, and that desktop/mobile layouts match the approved preview.
+
+The deliverable is a ZIP containing the working HTML/CSS/assets and a simple guide. Provide distinct guidance for a beginner, someone with existing hosting and someone handing files to a developer. Do not imply every hosted site builder accepts an HTML file unchanged. No hosting, domain registration, installation or indefinite maintenance is included at $27.
+
+Track generation jobs, model use, image costs and customer revision allowances server-side. Set sensible per-purchase limits and error handling. Do not build an unlimited-cost AI service behind a one-time $27 charge.
+
+## 7. Extra Pages bump
+
+Extra Pages must extend the approved website project, not start a second unrelated site. It should reuse its branding, header, footer, navigation, imagery and business profile. The customer chooses appropriate pages, supplies page-specific details, reviews/edits them and downloads one connected multi-page package with working internal links.
+
+The current page only saves a plan and says “up to four.” That is not a finished bump. Confirm the page count and checkout promise before building/selling. Make the allowance configurable in admin rather than scattered through the code.
+
+## 8. Owner workspace and navigation
+
+In the customer portal, place one discreet **Owner workspace** entry at the **bottom-left**, visible only to my owner account or authorised staff. Remove the current mid-sidebar Admin Workspace group and its irrelevant “Courses” item. Inside the owner workspace, retain the clear “Back to customer portal” control.
+
+Replace the old course admin with what this business actually needs:
+
+- **Overview:** paid orders, activated buyers, websites started/generated/approved/downloaded, pending jobs, failures and support items.
+- **Orders & entitlements:** purchase events, product mapping, refunds, access state, manual correction with an audit trail.
+- **Customers:** GHL contact/order identity, account status, purchased items, activation status, projects, outputs and support history.
+- **Website projects:** brief, assets, design choice, current stage, revisions, final files and quality checks.
+- **Jobs:** queued/running/failed/completed generation and export jobs, error details and safe retry.
+- **GHL integration:** connection health, last webhook, product mapping, event log, test-event tool and setup instructions. Do not display full secrets.
+- **AI usage:** per-job and per-customer costs, included limits, failed calls and unusual usage.
+- **Support:** questions linked to the correct customer and project.
+- **Team/settings:** only what is needed to run this offer.
+
+Remove course, lesson, completion, enrollment, Master Class and VIP Bonus Vault screens/metrics from this business. The admin dashboard must answer “Who bought what, did they get access, is their website being made, and where did anything fail?”
+
+## 9. Proof required before launch
+
+Please demonstrate all of the following in a staging/test environment before calling the build complete:
+
+- Logged-out visitor cannot use the builder, call generation APIs, view projects or download files.
+- Owner can log out, log back in, reset a password and reach the bottom-left owner entry.
+- Public email sign-up does not grant access.
+- Core-only GHL test purchase provisions one account and unlocks only the website.
+- Core plus bump unlocks both on the **same** account.
+- Upsell accepted seconds later unlocks correctly, without another account or a blocked GHL workflow.
+- Duplicate and out-of-order webhook events produce the correct single set of entitlements.
+- Failed payment does not grant access; refund is recorded against the correct product.
+- A customer can complete the brief, leave, return on another browser/device and continue.
+- Several different fitness business types produce visibly different, complete, credible sites.
+- Manual edit, targeted revision, restore/version history, image replacement and mobile preview work.
+- The exported ZIP works outside the portal and matches the preview.
+- The owner can see each test order, webhook, entitlement and generation job and retry a genuine failure.
+
+Start by auditing the current code and reporting: what can be reused, what is legacy, what is broken, and the shortest safe build sequence. Do not add more polished placeholder screens while authentication, purchase fulfilment and the core deliverable remain incomplete.

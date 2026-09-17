@@ -2,10 +2,10 @@ import { Router, type IRouter, type Response } from "express";
 import { db, businessProfilesTable, websiteProjectsTable, projectAssetsTable } from "@workspace/db";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
-import { requireAuth, type AuthedRequest } from "../middlewares/auth";
+import { PRODUCT_CODES, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireProductEntitlement(PRODUCT_CODES.website));
 const uuidParams = z.object({ projectId: z.string().uuid() });
 const updateBusinessProfileBody = z.object({
   businessName: z.string().optional(), niche: z.string().optional(), location: z.string().optional(),

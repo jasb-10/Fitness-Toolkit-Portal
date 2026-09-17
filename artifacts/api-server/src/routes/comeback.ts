@@ -10,7 +10,7 @@ import {
   type ComebackProfileData,
   type ComebackCampaignMessage,
 } from "@workspace/db";
-import { requireAuth, type AuthedRequest } from "../middlewares/auth";
+import { hasProductEntitlement, PRODUCT_CODES, requireAuth, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -81,20 +81,7 @@ function campaignDto(row: typeof comebackCampaignsTable.$inferSelect) {
 }
 
 async function hasCoreAccess(ar: AuthedRequest) {
-  if (["super_admin", "admin", "team"].includes(ar.userRole)) return true;
-  if (process.env.COMEBACK_REQUIRE_ENTITLEMENT !== "true") return true;
-  const [entitlement] = await db
-    .select({ id: productEntitlementsTable.id })
-    .from(productEntitlementsTable)
-    .where(
-      and(
-        eq(productEntitlementsTable.userId, ar.userId),
-        eq(productEntitlementsTable.productCode, "fitness-comeback-core"),
-        eq(productEntitlementsTable.status, "active"),
-      ),
-    )
-    .limit(1);
-  return Boolean(entitlement);
+  return hasProductEntitlement(ar.userId, ar.userRole, PRODUCT_CODES.campaignStudio);
 }
 
 function systemPrompt() {
