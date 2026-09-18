@@ -52,12 +52,14 @@ verified against live purchase events. Do not sell any unfinished product yet.
 - The review screen can return to the four opening layouts without consuming
   an AI draft. A separate button requests another full draft and visibly shows
   the remaining allowance. Concurrent generation attempts are rejected.
+- Generated service cards and process steps can now be edited individually in
+  the review panel; those changes use the existing autosave and export paths.
 
 ## Not ready to launch
 
 1. The website is still based on a narrow fixed page composition. Four hero
    choices and editable section text improve it, but it needs stronger image
-   and brand handling, editable cards/steps, full preview/export parity, and
+   and brand handling, full preview/export parity, and
    mobile visual QA. The current demonstration imagery can be niche-wrong.
 2. The current Extra Pages flow does not generate or export connected pages.
 3. Campaign Studio and Meta Ad Launch Pack are placeholders. Their mappings
