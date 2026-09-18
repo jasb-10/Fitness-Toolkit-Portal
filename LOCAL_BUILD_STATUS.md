@@ -54,6 +54,10 @@ verified against live purchase events. Do not sell any unfinished product yet.
   the remaining allowance. Concurrent generation attempts are rejected.
 - Generated service cards and process steps can now be edited individually in
   the review panel; those changes use the existing autosave and export paths.
+- A refreshed browser can resume an in-progress generation by polling the
+  saved project result. After two minutes without a result it returns to the
+  previous draft or design step with a support message rather than showing
+  an endless progress screen.
 
 ## Not ready to launch
 
@@ -66,7 +70,8 @@ verified against live purchase events. Do not sell any unfinished product yet.
    must remain disabled until deliverables, usage policies, and QA exist.
 4. The new server-enforced AI allowance has not been exercised against a real
    Replit database or checked for all concurrency/failure paths. Do not infer
-   readiness from the local typecheck.
+   readiness from the local typecheck. An abandoned server-side `generating`
+   state after a crashed process still needs an owner recovery procedure.
 5. The project does not have an end-to-end test suite. The API-wide typecheck
    already reports unrelated legacy errors; edited files were individually
    checked for TypeScript diagnostics. Build/deployment must be verified in

@@ -256,6 +256,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const initRef = useRef(false);
+  const recoveringBuildRef = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || !projectsQuery.data || initRef.current) return;
@@ -266,6 +267,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       setAiChanges(Math.max(0, 10 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
       setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
       if (p.currentStage && p.currentStage !== "home") {
+        if (p.currentStage === "building") recoveringBuildRef.current = true;
         setStage(p.currentStage as Stage);
       }
       if (p.briefData) {
@@ -307,6 +309,31 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     setGenerationAttempts(Number((current as { generationAttempts?: number }).generationAttempts || 0));
     setAiChanges(Math.max(0, 10 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
   }, [projectsQuery.data, projectId]);
+
+  useEffect(() => {
+    if (stage !== "building" || !recoveringBuildRef.current || !projectId) return;
+    const startedWaiting = Date.now();
+    const checkResult = () => {
+      const current = qc.getQueryData<typeof projectsQuery.data>(getListWebsiteProjectsQueryKey())?.find((project) => project.id === projectId);
+      if (!current) return;
+      if (current.status === "generating") {
+        if (Date.now() - startedWaiting < 120_000) return;
+        setSavedLabel("This is taking longer than expected. Your previous draft is safe; return later or contact support.");
+      } else if (current.currentStage === "building" && Date.now() - startedWaiting < 10_000) {
+        return;
+      }
+      recoveringBuildRef.current = false;
+      if (Array.isArray(current.sections)) setGeneratedSections(current.sections as GeneratedSection[]);
+      const savedCopy = (current.styleData as { copy?: SiteCopy } | null)?.copy;
+      if (savedCopy) setCopy(savedCopy);
+      setStage(Array.isArray(current.sections) && current.sections.length > 0 ? "editor" : "direction");
+    };
+    const timer = window.setInterval(() => {
+      void qc.invalidateQueries({ queryKey: getListWebsiteProjectsQueryKey() }).then(checkResult);
+    }, 3000);
+    checkResult();
+    return () => window.clearInterval(timer);
+  }, [stage, projectId, qc]);
 
   const palette = useMemo(() => {
     if (styleMode === "brand") return { ...palettes[0], id: "brand", name: "Your Brand", accent: brandColour };
