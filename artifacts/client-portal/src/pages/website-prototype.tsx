@@ -233,6 +233,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const [selectedPart, setSelectedPart] = useState<EditablePart>("headline");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiChanges, setAiChanges] = useState(10);
+  const [generationAttempts, setGenerationAttempts] = useState(0);
   const [buildIndex, setBuildIndex] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [heroImage, setHeroImage] = useState("https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1800&q=85");
@@ -263,6 +264,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       const p = projectsQuery.data[0];
       setProjectId(p.id);
       setAiChanges(Math.max(0, 10 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
+      setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
       if (p.currentStage && p.currentStage !== "home") {
         setStage(p.currentStage as Stage);
       }
@@ -299,6 +301,13 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     }
   }, [isAuthenticated, projectsQuery.data]);
 
+  useEffect(() => {
+    const current = projectsQuery.data?.find((project) => project.id === projectId);
+    if (!current) return;
+    setGenerationAttempts(Number((current as { generationAttempts?: number }).generationAttempts || 0));
+    setAiChanges(Math.max(0, 10 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
+  }, [projectsQuery.data, projectId]);
+
   const palette = useMemo(() => {
     if (styleMode === "brand") return { ...palettes[0], id: "brand", name: "Your Brand", accent: brandColour };
     if (styleMode === "recommend") return palettes.find((item) => item.id === paletteId) || palettes[0];
@@ -317,6 +326,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   const lastSavedStr = useRef("");
   const saveTimeout = useRef<number | null>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (resetRequested || !userId) return;
@@ -328,39 +338,35 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     localStorage.setItem(storageKey(userId, "palette-id")!, JSON.stringify(paletteId));
     localStorage.setItem(storageKey(userId, "font-style")!, JSON.stringify(fontStyle));
 
-    setSavedLabel("Saving...");
+    if (stage === "building") return;
+    if (!isAuthenticated || !projectId || !initRef.current) {
+      setSavedLabel("Preparing your account...");
+      return;
+    }
 
     const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections });
-    if (isAuthenticated && projectId && stateToSave !== lastSavedStr.current && initRef.current) {
-      if (saveTimeout.current) window.clearTimeout(saveTimeout.current);
-      saveTimeout.current = window.setTimeout(() => {
-        const mutateFn = updateProject.mutate;
-        mutateFn({
+    if (stateToSave === lastSavedStr.current) return;
+    setSavedLabel("Saving...");
+    saveTimeout.current = window.setTimeout(() => {
+      saveTimeout.current = null;
+      saveQueue.current = saveQueue.current.then(async () => {
+        await updateProject.mutateAsync({
           projectId,
           data: {
             currentStage: stage,
             briefData: brief as any,
-            styleData: {
-              styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy
-            },
+            styleData: { styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy },
             sections: generatedSections as any,
-          }
-        }, {
-          onSuccess: () => {
-             lastSavedStr.current = stateToSave;
-             setSavedLabel("Saved");
           },
-          onError: () => {
-             setSavedLabel("Save failed");
-          }
         });
-      }, 1000);
-      
-    } else if (!isAuthenticated || !projectId) {
-      const timer = window.setTimeout(() => setSavedLabel("Saved"), 350);
-      return () => window.clearTimeout(timer);
-    }
-    return undefined;
+        lastSavedStr.current = stateToSave;
+        setSavedLabel("Saved");
+      }).catch(() => { setSavedLabel("Save failed — please retry"); });
+    }, 1000);
+    return () => {
+      if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+      saveTimeout.current = null;
+    };
   }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections, isAuthenticated, projectId, resetRequested, userId]);
 
   useEffect(() => {
@@ -373,6 +379,12 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   }, [stage]);
 
   const beginBuild = async () => {
+    if (generationAttempts >= 2) {
+      setSavedLabel("Your two included drafts have been used. You can still edit your current page.");
+      return;
+    }
+    const previousCopy = copy;
+    const hadDraft = generatedSections.length > 0;
     const business = brief.businessName || "Your business";
     const service = brief.mainService || "personal coaching";
     const audience = brief.audience || "people who want lasting progress";
@@ -386,22 +398,26 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       setSavedLabel("Your account is still loading. Please try again in a moment.");
       return;
     }
+    if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+    saveTimeout.current = null;
+    setStage("building");
     setCopy(fallbackCopy);
     try {
       setSavedLabel("Saving your brief...");
+      await saveQueue.current;
       await updateProject.mutateAsync({
         projectId,
         data: {
           currentStage: "building",
           briefData: brief as any,
           styleData: {
-            styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy: fallbackCopy,
+            styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy: previousCopy,
           },
-          sections: [],
+          sections: generatedSections as any,
         },
       });
-      setStage("building");
       const generated = await generateProject.mutateAsync({ projectId });
+      setGenerationAttempts(Number((generated as { generationAttempts?: number }).generationAttempts || generationAttempts + 1));
       const generatedCopy = (generated.styleData as { copy?: SiteCopy } | null)?.copy;
       if (generatedCopy) setCopy(generatedCopy);
       if (Array.isArray(generated.sections)) setGeneratedSections(generated.sections as GeneratedSection[]);
@@ -411,8 +427,10 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       );
       setStage("editor");
     } catch {
-      setSavedLabel("Generation failed");
-      setStage("direction");
+      setCopy(previousCopy);
+      setSavedLabel(hadDraft ? "New draft failed — your previous draft is still available" : "Generation failed — please try again");
+      setStage(hadDraft ? "editor" : "direction");
+      void qc.invalidateQueries({ queryKey: getListWebsiteProjectsQueryKey() });
     }
   };
 
@@ -432,6 +450,18 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     if (!aiPrompt.trim() || aiChanges <= 0 || !projectId) return;
     setSavedLabel("Applying edit...");
     try {
+      if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+      saveTimeout.current = null;
+      await saveQueue.current;
+      await updateProject.mutateAsync({
+        projectId,
+        data: {
+          currentStage: "editor",
+          briefData: brief as any,
+          styleData: { styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy },
+          sections: generatedSections as any,
+        },
+      });
       const updated = await refineProject.mutateAsync({
         projectId,
         data: { prompt: aiPrompt.trim(), selectedPart, currentCopy: copy },
@@ -577,6 +607,9 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     if (isAuthenticated && projectId) {
       setSavedLabel("Approving...");
       try {
+        if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+        saveTimeout.current = null;
+        await saveQueue.current;
         await updateProject.mutateAsync({
           projectId,
           data: {
@@ -602,9 +635,9 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       {stage === "brief" && <BriefScreen brief={brief} setBrief={setBrief} files={uploadedFiles} upload={() => uploadRef.current?.click()} back={() => setStage("home")} next={() => setStage("content")} saved={savedLabel} />}
       {stage === "content" && <ContentScreen brief={brief} setBrief={setBrief} back={() => setStage("brief")} next={() => setStage("style")} saved={savedLabel} />}
       {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => setStage("direction")} palette={palette} />}
-      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} selected={direction} setSelected={setDirection} back={() => setStage("style")} build={beginBuild} />}
+      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} selected={direction} setSelected={setDirection} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} returnToEditor={() => setStage("editor")} />}
       {stage === "building" && <BuildingScreen brief={brief} palette={palette} copy={copy} heroImage={heroImage} index={buildIndex} />}
-      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} saved={savedLabel} />}
+      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} generationAttempts={generationAttempts} saved={savedLabel} />}
       {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
       <input ref={uploadRef} className="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
       <input ref={imageRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
@@ -712,7 +745,7 @@ function MiniSite({ briefName, copy, palette, heroImage, surface, fontStyle }: {
   return <aside className="self-start rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-5"><div className="mb-3 flex items-center justify-between px-1"><span className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Live preview</span><span className="text-[10px] text-muted-foreground">Based on your choices</span></div><div className="overflow-hidden rounded-xl border border-black/10" style={{ background: surface === "Mostly light" ? palette.light : palette.dark, color: surface === "Mostly light" ? palette.dark : "white" }}><div className="flex items-center justify-between px-5 py-4 text-[8px] font-bold"><span>{(briefName || "YOUR BUSINESS").toUpperCase()}</span><span className="rounded-md px-3 py-2 text-white" style={{ background: palette.accent }}>Get started</span></div><div className="relative min-h-[440px] overflow-hidden p-7"><img src={heroImage} alt="Fitness website example" className="absolute inset-0 h-full w-full object-cover opacity-60" /><div className="absolute inset-0" style={{ background: `linear-gradient(90deg, ${palette.dark} 12%, ${palette.dark}c9 50%, transparent)` }} /><div className="relative z-10 mt-24 max-w-[290px] text-white"><div className="mb-4 h-1 w-12" style={{ background: palette.accent }} /><h3 className={cn("text-4xl uppercase leading-[.9]", fontStyle === "Premium editorial" ? "font-serif normal-case" : "font-black")}>{copy.headline}</h3><p className="mt-4 text-xs leading-5 text-white/75">{copy.subheadline}</p><button className="mt-5 rounded-lg px-4 py-3 text-xs font-bold" style={{ background: palette.accent }}>Start your journey</button></div></div></div></aside>;
 }
 
-function DirectionScreen({ brief, setBrief, copy, palette, heroImage, selected, setSelected, back, build }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; selected: number; setSelected: (index: number) => void; back: () => void; build: () => void }) {
+function DirectionScreen({ brief, setBrief, copy, palette, heroImage, selected, setSelected, back, build, hasDraft, generationAttempts, returnToEditor }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; selected: number; setSelected: (index: number) => void; back: () => void; build: () => void; hasDraft: boolean; generationAttempts: number; returnToEditor: () => void }) {
   const directions = [
     { title: "Image-led and bold", description: "Full-bleed photography, immediate impact and a clear action." },
     { title: "Centred statement", description: "A focused headline and a simple, confident first impression." },
@@ -722,7 +755,7 @@ function DirectionScreen({ brief, setBrief, copy, palette, heroImage, selected, 
   return <div><ShellHeader step={4} title="Choose your opening direction" subtitle="These concepts use your business, preferred style and selected imagery. Choose one before we build the complete page." />
     <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{directions.map((item, index) => <button key={item.title} onClick={() => setSelected(index)} className={cn("overflow-hidden rounded-2xl border-2 bg-card text-left transition", selected === index ? "border-primary shadow-[0_14px_45px_rgba(239,22,47,.12)]" : "border-transparent ring-1 ring-[#dfe2e5] hover:ring-[#aeb3b9]")}><div className="relative h-72 overflow-hidden" style={{ background: index >= 2 ? palette.light : palette.dark }}><img src={heroImage} alt="" className={cn("absolute object-cover", index === 2 ? "right-0 top-0 h-full w-1/2" : index === 3 ? "inset-x-0 top-0 h-[58%] w-full" : "inset-0 h-full w-full", index < 2 && "opacity-70")} /><div className="absolute inset-0" style={{ background: index === 2 ? `linear-gradient(90deg,${palette.light} 45%,transparent 78%)` : index === 3 ? `linear-gradient(0deg,${palette.light} 0%,${palette.light} 23%,transparent 70%)` : index === 1 ? `linear-gradient(0deg,${palette.dark}df,${palette.dark}44)` : `linear-gradient(90deg,${palette.dark}e8,${palette.dark}22)` }} /><div className={cn("relative z-10 flex h-full flex-col p-6", index === 1 ? "items-center justify-center text-center" : index === 3 ? "justify-end" : "justify-center", index >= 2 ? "text-slate-950" : "text-white")}><span className="text-[8px] font-bold uppercase tracking-[.2em]" style={{ color: palette.accent }}>{brief.mainService || "Personal coaching"}</span><div className={cn("mt-3 text-2xl font-black leading-[.95]", index === 2 && "max-w-[55%]")}>{copy.headline}</div><span className="mt-5 w-fit rounded-md px-3 py-2 text-[8px] font-bold text-white" style={{ background: palette.accent }}>{brief.goal}</span></div></div><div className="p-5"><div className="flex items-center justify-between"><h3 className="font-sans font-bold">{item.title}</h3>{selected === index && <CheckCircle2 className="h-5 w-5 text-primary" />}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p></div></button>)}</div>
       <section className="rounded-2xl border border-border bg-card p-6"><div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Recommended page structure</div><h2 className="mt-2 text-2xl font-black">Built around {brief.goal.toLowerCase()}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">We will create the sections below and hide anything that lacks credible customer information.</p><div className="mt-4 flex flex-wrap gap-2">{recommendedSections(brief.businessType).map((section) => <span key={section} className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold">{section}</span>)}</div></div><div className="rounded-xl bg-secondary p-5"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={brief.banner} onChange={(event) => setBrief({ ...brief, banner: event.target.checked })} className="mt-1 accent-[#ef162f]" /><span><span className="text-sm font-bold">Announcement banner</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Useful for class openings, launches, events or time-sensitive offers.</span></span></label>{brief.banner && <input value={brief.bannerText} onChange={(event) => setBrief({ ...brief, bannerText: event.target.value })} placeholder="Example: Three coaching places available this month" className="mt-4 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-border" />}</div></div></section>
-      <div className="flex items-center justify-between"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><button onClick={build} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white">Build my website<ArrowRight className="h-4 w-4" /></button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><div className="flex flex-wrap items-center gap-3">{hasDraft && <button onClick={returnToEditor} className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold">Use this design with my current copy</button>}<button onClick={build} disabled={generationAttempts >= 2} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white disabled:opacity-40">{hasDraft ? "Generate another draft" : "Build my website"}<ArrowRight className="h-4 w-4" /></button><span className="text-xs text-muted-foreground">{Math.max(0, 2 - generationAttempts)} AI drafts remaining. Changing design alone is free.</span></div></div>
     </div></div>;
 }
 
@@ -737,13 +770,13 @@ function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Bri
   </div>;
 }
 
-function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "title" | "body", value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; saved: string }) {
+function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, changeDirection, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "title" | "body", value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; changeDirection: () => void; generationAttempts: number; saved: string }) {
   return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Edit the hero and about text in the preview; edit the remaining sections in the right panel.</div></div><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
     <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
       <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
       <div className="mt-6 border-t pt-5"><Field label="Where should the main button go?" hint="Booking URL, mailto: email link, or tel: phone link."><TextInput value={brief.bookingLink} onChange={(value) => setBrief({ ...brief, bookingLink: value })} placeholder="https://..." /></Field>{brief.bookingLink && !safeLink(brief.bookingLink) && <p className="mt-2 text-xs text-red-700">This link is not valid yet.</p>}</div>
       <details className="mt-6 border-t pt-5"><summary className="cursor-pointer text-sm font-black">Evidence and FAQ</summary><div className="mt-4 space-y-4">{([['credentials', 'Qualifications'], ['results', 'Verified results'], ['testimonialQuote', 'Approved client quote'], ['testimonialName', 'Client name'], ['faqQuestion', 'Common question'], ['faqAnswer', 'Your answer']] as const).map(([key, label]) => <Field key={key} label={label}><textarea value={brief[key]} onChange={(event) => setBrief({ ...brief, [key]: event.target.value })} className="min-h-16 w-full rounded-xl border border-border p-3 text-sm" /></Field>)}</div></details>
-      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select></div>
+      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} aria-label={`Use ${item.name} colours`} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select><button onClick={changeDirection} className="mt-3 w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold">Change opening layout</button><p className="mt-2 text-xs text-muted-foreground">Choose a layout without using an AI draft, or generate a fresh draft if you have one left ({Math.max(0, 2 - generationAttempts)} remaining).</p></div>
       <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Page sections</div><p className="mt-1 text-xs text-muted-foreground">Changes here appear in both your preview and downloaded page.</p>{generatedSections.filter((section) => ["services", "approach", "about", "contact"].includes(section.id)).map((section) => <details key={section.id} className="mt-3 rounded-xl border border-border p-3"><summary className="cursor-pointer text-sm font-semibold capitalize">{section.id}</summary><label className="mt-4 block text-xs font-semibold">Heading<input value={section.title} onChange={(event) => updateSection(section.id, "title", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Text<textarea value={section.id === "about" ? copy.about : section.body} onChange={(event) => section.id === "about" ? updateCopy("about", event.target.value) : updateSection(section.id, "body", event.target.value)} className="mt-2 min-h-28 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>{section.highlights?.length ? <p className="mt-3 text-xs text-muted-foreground">To change the highlighted cards or steps, edit your brief and generate a new draft. Their exact wording is not directly editable yet.</p> : null}</details>)}</div>
       <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without adding new claims." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} assisted edits remaining</span><button aria-label="Apply copy edit" onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div></aside></div>
   </div>;

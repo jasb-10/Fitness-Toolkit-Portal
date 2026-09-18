@@ -45,6 +45,13 @@ verified against live purchase events. Do not sell any unfinished product yet.
 - Approval now checks the contact destination and a project-owned uploaded
   hero image on the server. The browser sends the latest brief and design
   with approval so a pending autosave cannot invalidate the check.
+- Browser autosaves now run in order and pause during AI generation. A failed
+  replacement generation keeps the previous saved draft instead of dropping
+  the customer into an empty state. Server writes are refused during active
+  generation, including an atomic check when the write is committed.
+- The review screen can return to the four opening layouts without consuming
+  an AI draft. A separate button requests another full draft and visibly shows
+  the remaining allowance. Concurrent generation attempts are rejected.
 
 ## Not ready to launch
 

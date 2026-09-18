@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { db, businessProfilesTable, websiteProjectsTable, projectAssetsTable } from "@workspace/db";
 import { z } from "zod";
-import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { eq, and, desc, lt, ne, sql } from "drizzle-orm";
 import { PRODUCT_CODES, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -136,6 +136,9 @@ router.patch("/website-projects/:projectId", async (req, res: Response) => {
   const project = await ownedProject(projectId, userId);
   if (!project) return res.status(404).json({ error: "Website project not found" });
   const body = updateWebsiteProjectBody.parse(req.body);
+  if (project.status === "generating") {
+    return res.status(409).json({ error: "Wait for the current website generation to finish before saving changes" });
+  }
   if (body.status === "approved" && !["draft_ready", "approved"].includes(project.status)) {
     return res.status(409).json({ error: "Generate a website draft before approving it" });
   }
@@ -159,7 +162,8 @@ router.patch("/website-projects/:projectId", async (req, res: Response) => {
     if (!asset) return res.status(422).json({ error: "The selected photo is not in this project" });
   }
   const [updated] = await db.update(websiteProjectsTable).set({ ...body, updatedAt: new Date() })
-    .where(eq(websiteProjectsTable.id, projectId)).returning();
+    .where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), ne(websiteProjectsTable.status, "generating"))).returning();
+  if (!updated) return res.status(409).json({ error: "Wait for the current website generation to finish before saving changes" });
   return res.json(serializeProject(updated));
 });
 
@@ -188,7 +192,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
     currentStage: "building",
     progressData: [{ step: "generation", status: "running", startedAt: startedAt.toISOString() }],
     updatedAt: startedAt,
-  }).where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), lt(websiteProjectsTable.generationAttempts, MAX_GENERATIONS))).returning({ id: websiteProjectsTable.id });
+  }).where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), ne(websiteProjectsTable.status, "generating"), lt(websiteProjectsTable.generationAttempts, MAX_GENERATIONS))).returning({ id: websiteProjectsTable.id });
   if (!reserved) return res.status(429).json({ error: "Your included website drafts have been used. Manual editing is still available." });
 
   try {
@@ -326,9 +330,10 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
     return res.json(serializeProject(updated));
   } catch (error) {
     req.log.error({ err: error, projectId }, "Website generation failed");
+    const recoverableDraft = ["draft_ready", "approved"].includes(project.status) && project.sections.length > 0;
     await db.update(websiteProjectsTable).set({
-      status: "generation_failed",
-      currentStage: "direction",
+      status: recoverableDraft ? project.status : "generation_failed",
+      currentStage: recoverableDraft ? "editor" : "direction",
       progressData: [{ step: "generation", status: "failed", startedAt: startedAt.toISOString() }],
       updatedAt: new Date(),
     }).where(eq(websiteProjectsTable.id, projectId));
