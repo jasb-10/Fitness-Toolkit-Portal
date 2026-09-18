@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import {
   ArrowLeft,
+  CircleHelp,
   ChevronDown,
   ChevronUp,
   LayoutDashboard,
@@ -37,7 +38,8 @@ interface NavItem {
 
 const adminNav: NavItem[] = [
   { label: "GHL fulfilment", href: "/admin/ghl", icon: Webhook },
-  { label: "Members", href: "/admin/users", icon: Users },
+  { label: "Customers", href: "/admin/users", icon: Users },
+  { label: "Support", href: "/admin/support", icon: CircleHelp },
   { label: "Team", href: "/admin/team", icon: UserCog },
 ];
 
@@ -81,7 +83,7 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
             </div>
             <div>
               <div className="text-sm font-extrabold tracking-tight">FITNESS</div>
-              <div className="text-[10px] tracking-[.32em] text-primary/80">OWNER</div>
+              <div className="text-[10px] tracking-[.32em] text-primary/80">{isAdmin(role) ? "OWNER" : "SUPPORT"}</div>
             </div>
           </div>
         </Link>
@@ -95,7 +97,7 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
       <nav className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-[.2em] text-sidebar-foreground/40">Owner Workspace</div>
         <div className="space-y-1">
-          {adminNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
+          {adminNav.filter((item) => isAdmin(role) || item.href === "/admin/support").map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
         </div>
       </nav>
 

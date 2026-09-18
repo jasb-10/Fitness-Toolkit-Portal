@@ -85,6 +85,28 @@ export async function ensureLocalUser(clerkUserId: string) {
     .limit(1);
   if (existing[0]) {
     let localUser = existing[0];
+    if (localUser.email.endsWith("@unknown.local")) {
+      try {
+        const identity = await clerkClient.users.getUser(clerkUserId);
+        const verifiedEmail = identity.primaryEmailAddress?.verification?.status === "verified"
+          ? identity.primaryEmailAddress.emailAddress.toLowerCase()
+          : null;
+        if (verifiedEmail) {
+          const [buyer] = await db.select().from(usersTable)
+            .where(sql`lower(${usersTable.email}) = ${verifiedEmail}`).limit(1);
+          if (buyer && buyer.id !== localUser.id) {
+            // Two local records need an owner-reviewed merge; never silently
+            // overwrite a different buyer's identity or entitlement history.
+            throw new Error("Verified email belongs to another local account");
+          }
+          const [updated] = await db.update(usersTable).set({ email: verifiedEmail })
+            .where(eq(usersTable.id, localUser.id)).returning();
+          localUser = updated ?? localUser;
+        }
+      } catch {
+        // Keep the account unprivileged until verification can be checked.
+      }
+    }
     const configuredOwner =
       Boolean(process.env.PORTAL_OWNER_EMAIL?.trim()) &&
       localUser.email.toLowerCase() ===
@@ -130,20 +152,20 @@ export async function ensureLocalUser(clerkUserId: string) {
   let avatarUrl: string | null = null;
   try {
     const cu = await clerkClient.users.getUser(clerkUserId);
-    email =
-      cu.primaryEmailAddress?.emailAddress ??
-      cu.emailAddresses[0]?.emailAddress ??
-      email;
+    const verifiedPrimaryEmail = cu.primaryEmailAddress?.verification?.status === "verified"
+      ? cu.primaryEmailAddress.emailAddress
+      : null;
+    // Neither owner bootstrap nor purchase-email claiming may trust a Clerk
+    // address until its ownership has been verified by the identity provider.
+    if (verifiedPrimaryEmail) email = verifiedPrimaryEmail;
     name =
       [cu.firstName, cu.lastName].filter(Boolean).join(" ").trim() ||
       cu.username ||
-      email.split("@")[0] ||
+      (verifiedPrimaryEmail ? email.split("@")[0] : "New Member") ||
       "New Member";
     avatarUrl = cu.imageUrl ?? null;
 
-    const primaryEmailVerified =
-      cu.primaryEmailAddress?.verification?.status === "verified";
-    if (primaryEmailVerified && !email.endsWith("@unknown.local")) {
+    if (verifiedPrimaryEmail) {
       const [sameEmailUser] = await db
         .select()
         .from(usersTable)

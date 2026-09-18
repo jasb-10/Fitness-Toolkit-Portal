@@ -8,9 +8,6 @@ import {
   refundRequestsTable,
   settingsTable,
   usersTable,
-  coursesTable,
-  chaptersTable,
-  lessonsTable,
 } from "@workspace/db";
 import { desc, eq, asc } from "drizzle-orm";
 import {
@@ -18,13 +15,7 @@ import {
   CreateRefundRequestBody,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
-import { getStripe } from "../lib/stripe";
-import { billingTable } from "@workspace/db";
-import {
-  recordActivity,
-  summarizeActivity,
-  summaryToPromptText,
-} from "../lib/activity";
+import { recordActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -32,10 +23,10 @@ router.use(requireAuth);
 
 const DEFAULT_SETTINGS = {
   refundPolicy:
-    "Refunds may be requested within 14 days of purchase. Submit a request below and our team will review it.",
+    "To request a refund, submit the form below. Our team will review the purchase and applicable terms before making a decision.",
   autoApproveUnderAmount: null as number | null,
   supportSystemPrompt:
-    "You are a helpful support assistant for this learning platform. Answer using the provided knowledge base and course outline. If you do not know the answer, suggest contacting support or filing a refund request.",
+    "You are the Fitness Toolkit support assistant. Help customers use their purchased website and other available products using only the published help content. Never promise that a website is hosted or live when it is only a downloadable file. Do not decide refund eligibility, issue refunds, or promise a refund outcome. Escalate account, billing, product-access and unresolved technical issues to the owner.",
   refundDaysWindow: 14 as number | null,
 };
 
@@ -71,7 +62,7 @@ async function getSettings() {
 }
 
 async function buildKbContext(): Promise<string> {
-  const [articles, sources, courses] = await Promise.all([
+  const [articles, sources] = await Promise.all([
     db
       .select()
       .from(supportArticlesTable)
@@ -83,35 +74,7 @@ async function buildKbContext(): Promise<string> {
       .from(supportKbSourcesTable)
       .orderBy(desc(supportKbSourcesTable.createdAt))
       .limit(40),
-    db.select().from(coursesTable),
   ]);
-
-  const courseIds = courses.map((c) => c.id);
-  const allChapters = courseIds.length
-    ? await db.select().from(chaptersTable)
-    : [];
-  const allLessons = courseIds.length
-    ? await db.select().from(lessonsTable)
-    : [];
-
-  const courseOutline = courses
-    .map((c) => {
-      const chs = allChapters
-        .filter((ch) => ch.courseId === c.id)
-        .sort((a, b) => a.position - b.position);
-      const body = chs
-        .map((ch) => {
-          const ls = allLessons
-            .filter((l) => l.chapterId === ch.id)
-            .sort((a, b) => a.position - b.position)
-            .map((l) => `    - ${l.title}`)
-            .join("\n");
-          return `  - ${ch.title}\n${ls}`;
-        })
-        .join("\n");
-      return `Course: ${c.title}\n${body}`;
-    })
-    .join("\n\n");
 
   const articleText = articles
     .map((a) => `# ${a.title}\n${a.body}`)
@@ -124,7 +87,6 @@ async function buildKbContext(): Promise<string> {
     .join("\n\n---\n\n");
 
   return [
-    courseOutline && `## Course outline\n${courseOutline}`,
     articleText && `## Help articles\n${articleText}`,
     sourceText && `## Knowledge base\n${sourceText}`,
   ]
@@ -210,10 +172,8 @@ router.get(
 );
 
 type RefundOutcome = {
-  status: "processed" | "pending" | "denied" | "failed";
+  status: "pending";
   message: string;
-  refundId?: string;
-  amountRefunded?: number | null;
 };
 
 async function processRefundTool(args: {
@@ -222,134 +182,15 @@ async function processRefundTool(args: {
   amount?: number | null;
   stripeChargeId?: string | null;
 }): Promise<RefundOutcome> {
-  const settings = await getSettings();
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, args.userId));
-  const [billing] = await db
-    .select()
-    .from(billingTable)
-    .where(eq(billingTable.userId, args.userId));
-
-  // Window check: based on billing record creation. Customize for your own
-  // purchase-tracking scheme.
-  const refundDays = settings.refundDaysWindow;
-  if (refundDays && billing?.createdAt) {
-    const ageDays =
-      (Date.now() - billing.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    if (ageDays > refundDays) {
-      const [row] = await db
-        .insert(refundRequestsTable)
-        .values({
-          userId: args.userId,
-          reason: args.reason,
-          amount: args.amount != null ? String(args.amount) : null,
-          stripeChargeId: args.stripeChargeId ?? null,
-          status: "denied",
-          decisionNote: `Outside ${refundDays}-day refund window (purchase is ${Math.floor(ageDays)} days old).`,
-          resolvedAt: new Date(),
-        })
-        .returning();
-      return {
-        status: "denied",
-        message: `This purchase is ${Math.floor(ageDays)} days old, which is outside our ${refundDays}-day refund window. The request was logged (id ${row!.id}).`,
-      };
-    }
-  }
-
-  const stripe = getStripe();
-  const autoApprove = settings.autoApproveUnderAmount;
-  const eligibleForAuto =
-    !!stripe &&
-    autoApprove != null &&
-    (args.amount == null || args.amount <= autoApprove);
-
-  let chargeId = args.stripeChargeId ?? null;
-
-  // Try to find the customer's most recent successful charge by email when
-  // the model didn't provide a charge id.
-  if (eligibleForAuto && !chargeId && stripe && user?.email) {
-    try {
-      const customers = await stripe.customers.list({
-        email: user.email,
-        limit: 1,
-      });
-      const customer = customers.data[0];
-      if (customer) {
-        const charges = await stripe.charges.list({
-          customer: customer.id,
-          limit: 5,
-        });
-        const candidate = charges.data.find(
-          (c) => c.paid && !c.refunded && c.status === "succeeded",
-        );
-        if (candidate) chargeId = candidate.id;
-      }
-    } catch {
-      // Fall through to manual queueing below.
-    }
-  }
-
-  if (eligibleForAuto && chargeId && stripe) {
-    try {
-      const refund = await stripe.refunds.create({
-        charge: chargeId,
-        ...(args.amount && args.amount > 0
-          ? { amount: Math.round(args.amount * 100) }
-          : {}),
-      });
-      const [row] = await db
-        .insert(refundRequestsTable)
-        .values({
-          userId: args.userId,
-          reason: args.reason,
-          amount: args.amount != null ? String(args.amount) : null,
-          stripeChargeId: chargeId,
-          stripeRefundId: refund.id,
-          status: "processed",
-          decisionNote: "Auto-approved by support assistant.",
-          resolvedAt: new Date(),
-        })
-        .returning();
-      return {
-        status: "processed",
-        refundId: refund.id,
-        amountRefunded: refund.amount ? refund.amount / 100 : null,
-        message: `Refund issued via Stripe (id ${refund.id}, request ${row!.id}). It typically appears within 5–10 business days.`,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Stripe refund failed";
-      const [row] = await db
-        .insert(refundRequestsTable)
-        .values({
-          userId: args.userId,
-          reason: args.reason,
-          amount: args.amount != null ? String(args.amount) : null,
-          stripeChargeId: chargeId,
-          status: "failed",
-          decisionNote: msg,
-          resolvedAt: new Date(),
-        })
-        .returning();
-      return {
-        status: "failed",
-        message: `I tried to process the refund but Stripe returned: ${msg}. The request (id ${row!.id}) has been escalated to our team.`,
-      };
-    }
-  }
-
-  // Otherwise queue for human review.
-  const summary = await summarizeActivity(args.userId);
   const [row] = await db
     .insert(refundRequestsTable)
     .values({
       userId: args.userId,
       reason: args.reason,
       amount: args.amount != null ? String(args.amount) : null,
-      stripeChargeId: chargeId,
+      stripeChargeId: args.stripeChargeId ?? null,
       status: "pending",
-      decisionNote: `User progress at time of request:\n${summaryToPromptText(summary)}`,
+      decisionNote: "Awaiting owner review against the GHL purchase and refund policy.",
     })
     .returning();
   void recordActivity({
@@ -359,13 +200,11 @@ async function processRefundTool(args: {
     metadata: {
       amount: args.amount ?? null,
       refundId: row!.id,
-      lessonsCompleted: summary.lessonsCompleted,
-      completionPct: summary.completionPct,
     },
   });
   return {
     status: "pending",
-    message: `Your refund request (id ${row!.id}) has been logged for review. Our team responds within 2 business days.`,
+    message: `Your refund request (id ${row!.id}) has been sent for review. We will email you once our team has checked your purchase.`,
   };
 }
 
@@ -400,7 +239,6 @@ router.post(
 
     const settings = await getSettings();
     const kb = await buildKbContext();
-    const userSummary = await summarizeActivity(ar.userId);
     const history = await db
       .select()
       .from(supportMessagesTable)
@@ -413,7 +251,7 @@ router.post(
         function: {
           name: "request_refund",
           description:
-            "Open a refund request for the current user. Use this whenever the user asks for, hints at, or accepts a refund. The system will check policy and, when allowed, automatically issue the refund via Stripe. Otherwise it queues the request for human review.",
+            "Queue a refund request for owner review. This tool never decides eligibility and never issues money. Call it only when the customer explicitly asks to request a refund.",
           parameters: {
             type: "object",
             properties: {
@@ -434,13 +272,10 @@ router.post(
     ];
 
     const systemPrompt = [
+      "You are Fitness Toolkit support. Do not decide refund eligibility or promise a refund. A refund request is only logged for human review. Never claim to have issued money, published a website, or granted product access. If the answer is not in verified help content, escalate to a person.",
       settings.supportSystemPrompt,
       `\nRefund policy: ${settings.refundPolicy}`,
-      settings.refundDaysWindow != null
-        ? `Refund window: ${settings.refundDaysWindow} days from purchase.`
-        : "",
-      "When a user wants a refund, call the request_refund tool exactly once with a clear reason. Do not promise a refund before the tool returns; instead summarize the tool result accurately.",
-      `\nUser activity & progress (use this to evaluate refund eligibility against policy):\n${summaryToPromptText(userSummary)}`,
+      "When a customer explicitly requests a refund, call request_refund once with a short reason, then say it has been sent for review. Do not ask for or infer a charge ID.",
       `\nUse the following context to answer:\n${kb || "(no knowledge base content yet)"}`,
     ]
       .filter(Boolean)

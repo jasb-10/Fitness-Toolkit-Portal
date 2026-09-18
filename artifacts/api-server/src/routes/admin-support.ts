@@ -24,7 +24,7 @@ import {
   refundDto,
   slugify,
 } from "./support";
-import { getStripe, probeStripe } from "../lib/stripe";
+import { probeStripe } from "../lib/stripe";
 import { bulkGenerateArticles } from "../lib/bulkArticles";
 import {
   sendEmail,
@@ -124,7 +124,7 @@ router.post(
         messages: [
           {
             role: "system",
-            content: `You write concise help-center ${body.kind === "faq" ? "FAQ entries" : "articles"} for a learning platform. Use markdown. Use the knowledge base to ground answers.`,
+            content: `You write concise Fitness Toolkit ${body.kind === "faq" ? "FAQ entries" : "help articles"} for customers buying downloadable websites and related marketing products. Use markdown and only verified knowledge-base facts. Do not invent hosting, live publication, refund eligibility, or product access.`,
           },
           {
             role: "user",
@@ -343,35 +343,9 @@ router.patch(
     let decisionNote = body.decisionNote ?? existing.decisionNote ?? null;
 
     if (body.executeStripeRefund) {
-      const stripe = getStripe();
-      if (!stripe) {
-        return res.status(400).json({
-          error:
-            "Stripe is not configured. Set STRIPE_SECRET_KEY in your environment to enable refund execution.",
-        });
-      }
-      if (!stripeChargeId) {
-        return res
-          .status(400)
-          .json({ error: "Stripe charge ID is required to execute a refund." });
-      }
-      try {
-        const amountFloat = existing.amount
-          ? Number.parseFloat(existing.amount)
-          : NaN;
-        const refund = await stripe.refunds.create({
-          charge: stripeChargeId,
-          ...(Number.isFinite(amountFloat) && amountFloat > 0
-            ? { amount: Math.round(amountFloat * 100) }
-            : {}),
-        });
-        stripeRefundId = refund.id;
-        status = "processed";
-      } catch (err) {
-        status = "failed";
-        const msg = err instanceof Error ? err.message : "Stripe refund failed";
-        decisionNote = decisionNote ? `${decisionNote}\n\n${msg}` : msg;
-      }
+      return res.status(400).json({
+        error: "Portal refund execution is disabled. Review and issue any refund in the payment system, then record the outcome here.",
+      });
     }
 
     const resolved =
@@ -435,7 +409,7 @@ router.get("/admin/support/settings", async (_req, res: Response) => {
 
 router.put("/admin/support/settings", async (req, res: Response) => {
   const body = SupportSettings.parse(req.body);
-  const merged = { ...DEFAULT_SETTINGS, ...body };
+  const merged = { ...DEFAULT_SETTINGS, ...body, autoApproveUnderAmount: null };
   const existing = await db
     .select()
     .from(settingsTable)

@@ -50,14 +50,6 @@ const primaryNav: NavItem[] = [
   { label: "My Website", href: "/website", icon: Monitor },
 ];
 
-const adminNav: NavItem[] = [
-  { label: "GHL fulfilment", href: "/admin/ghl", icon: ShieldCheck },
-  { label: "Customers", href: "/admin/users", icon: Users },
-  { label: "Courses", href: "/admin/courses", icon: Wrench },
-  { label: "Team", href: "/admin/team", icon: BriefcaseBusiness },
-  { label: "Support", href: "/admin/support", icon: CircleHelp },
-];
-
 const upgradesNav: NavItem[] = [
   { label: "Extra Pages", href: "/extra-pages", icon: FileText, note: "Bump 1" },
 ];
@@ -126,15 +118,6 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
           {primaryNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
         </div>
 
-        {showAdmin && (
-          <>
-            <div className="px-3 pb-2 pt-6 text-[9px] font-bold uppercase tracking-[.24em] text-primary">Admin workspace</div>
-            <div className="space-y-1 rounded-2xl border border-primary/20 bg-primary/[.06] p-1.5">
-              {adminNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
-            </div>
-          </>
-        )}
-        
         <div className="px-3 pb-2 pt-6 text-[9px] font-bold uppercase tracking-[.24em] text-sidebar-foreground/35">Your upgrades</div>
         <div className="space-y-1">
           {upgradesNav.map((item) => <NavLink key={item.href} item={item} onNavigate={close} />)}
@@ -151,6 +134,13 @@ function SidePanel({ mobile = false, close }: { mobile?: boolean; close?: () => 
       </nav>
 
       <div className="space-y-2 border-t border-white/10 p-3">
+        {showAdmin && (
+          <Link href={isAdmin(role) ? "/admin/ghl" : "/admin/support"} onClick={close} className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-sidebar-foreground hover:bg-primary/20 transition-colors">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <span>{isAdmin(role) ? "Admin workspace" : "Support workspace"}</span>
+            <ArrowRight className="ml-auto h-4 w-4" />
+          </Link>
+        )}
         <Link href="/settings/profile" onClick={close} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-sidebar-foreground/65 hover:bg-white/[.06] hover:text-sidebar-foreground transition-colors">
           <Settings className="h-4 w-4" />
           <span className="flex-1">Settings</span>
