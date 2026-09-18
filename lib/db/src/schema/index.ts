@@ -503,6 +503,8 @@ export const websiteProjectsTable = pgTable(
     ),
     name: text("name").notNull().default("My fitness website"),
     status: text("status").notNull().default("draft"),
+    generationAttempts: integer("generation_attempts").notNull().default(0),
+    refinementAttempts: integer("refinement_attempts").notNull().default(0),
     currentStage: text("current_stage").notNull().default("brief"),
     briefData: jsonb("brief_data")
       .$type<Record<string, unknown>>()

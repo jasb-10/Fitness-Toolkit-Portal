@@ -38,11 +38,18 @@ function secretMatches(supplied: string | undefined) {
 async function ensureMappings() {
   const defaults = [
     { productCode: "fitness-website-core", productName: "Personalised Website", priceCents: 2700, enabled: true, deliverableReady: true },
-    { productCode: "fitness-extra-pages", productName: "Extra Pages", priceCents: 0, enabled: true, deliverableReady: true },
+    { productCode: "fitness-extra-pages", productName: "Extra Pages", priceCents: 0, enabled: false, deliverableReady: false },
+    { productCode: "fitness-bump-2", productName: "Bump 2 (undecided)", priceCents: 0, enabled: false, deliverableReady: false },
     { productCode: "fitness-campaign-studio", productName: "Campaign Studio", priceCents: 4700, enabled: false, deliverableReady: false },
     { productCode: "fitness-meta-ads", productName: "Meta Ad Launch Pack", priceCents: 9700, enabled: false, deliverableReady: false },
   ];
   await db.insert(ghlProductMappingsTable).values(defaults).onConflictDoNothing();
+  // A saved page-selection plan is not the paid multi-page deliverable. Keep
+  // existing development mappings unsellable until generation/export is built.
+  await db.update(ghlProductMappingsTable).set({
+    enabled: false,
+    deliverableReady: false,
+  }).where(eq(ghlProductMappingsTable.productCode, "fitness-extra-pages"));
 }
 
 async function sendActivation(email: string) {
@@ -61,6 +68,67 @@ async function sendActivation(email: string) {
   }
 }
 
+async function applyEntitlement(event: typeof ghlPurchaseEventsTable.$inferSelect) {
+  if (!event.productCode) throw new Error("Unmapped purchase event cannot grant access");
+  // A failed checkout or payment attempt is not a refund of an earlier
+  // successful purchase. Record it for support, but never change access.
+  if (event.eventType === "failed") return;
+  const productCode = event.productCode;
+  await db.transaction(async (tx) => {
+    // Serialise events for a single purchased product. A delayed paid delivery
+    // must never reopen an order that has already been refunded/charged back.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${event.orderId + ":" + productCode}))`);
+    const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(sql`lower(${usersTable.email}) = ${event.purchaserEmail}`).limit(1);
+    const [existing] = await tx.select().from(productEntitlementsTable).where(and(
+      eq(productEntitlementsTable.externalOrderId, event.orderId),
+      eq(productEntitlementsTable.productCode, productCode),
+    )).limit(1);
+    const [terminalEvent] = await tx.select({ id: ghlPurchaseEventsTable.id })
+      .from(ghlPurchaseEventsTable).where(and(
+        eq(ghlPurchaseEventsTable.orderId, event.orderId),
+        eq(ghlPurchaseEventsTable.productCode, productCode),
+        sql`${ghlPurchaseEventsTable.eventType} in ('refunded', 'chargeback')`,
+        sql`${ghlPurchaseEventsTable.processingStatus} <> 'unmatched'`,
+      )).limit(1);
+    const status = event.eventType === "paid" && !terminalEvent ? "active" : "revoked";
+    if (existing) {
+      await tx.update(productEntitlementsTable).set({
+        userId: user?.id ?? existing.userId,
+        status,
+        updatedAt: new Date(),
+      }).where(eq(productEntitlementsTable.id, existing.id));
+    } else {
+      await tx.insert(productEntitlementsTable).values({
+        userId: user?.id ?? null,
+        purchaserEmail: event.purchaserEmail,
+        productCode,
+        status,
+        source: "ghl",
+        externalOrderId: event.orderId,
+      });
+    }
+  });
+}
+
+async function processEvent(event: typeof ghlPurchaseEventsTable.$inferSelect) {
+  await applyEntitlement(event);
+  let activationStatus = "not_required";
+  if (event.eventType === "paid" && event.productCode === "fitness-website-core") {
+    // Do not invite someone on a late paid event for an already revoked order.
+    const [entitlement] = await db.select({ status: productEntitlementsTable.status })
+      .from(productEntitlementsTable).where(and(
+        eq(productEntitlementsTable.externalOrderId, event.orderId),
+        eq(productEntitlementsTable.productCode, "fitness-website-core"),
+      )).limit(1);
+    if (entitlement?.status === "active") activationStatus = await sendActivation(event.purchaserEmail);
+  }
+  await db.update(ghlPurchaseEventsTable).set({
+    processingStatus: "completed", activationStatus, error: null, processedAt: new Date(),
+  }).where(eq(ghlPurchaseEventsTable.id, event.id));
+  return activationStatus;
+}
+
 router.post("/webhooks/ghl/purchase", async (req, res: Response) => {
   if (!process.env.GHL_WEBHOOK_SECRET) {
     return res.status(503).json({ error: "GHL webhook is not configured" });
@@ -75,66 +143,53 @@ router.post("/webhooks/ghl/purchase", async (req, res: Response) => {
   await ensureMappings();
   const body = parsed.data;
   const email = body.email.trim().toLowerCase();
-  const [existingEvent] = await db.select({ id: ghlPurchaseEventsTable.id })
-    .from(ghlPurchaseEventsTable).where(eq(ghlPurchaseEventsTable.eventId, body.eventId)).limit(1);
-  if (existingEvent) return res.json({ received: true, duplicate: true });
-
   const [mapping] = await db.select().from(ghlProductMappingsTable)
     .where(eq(ghlProductMappingsTable.externalProductId, body.productId)).limit(1);
-  const accepted = mapping?.enabled && mapping.deliverableReady;
-  const [event] = await db.insert(ghlPurchaseEventsTable).values({
+  const [priorPurchase] = mapping ? [] : await db.select({ productCode: ghlPurchaseEventsTable.productCode })
+    .from(ghlPurchaseEventsTable).where(and(
+      eq(ghlPurchaseEventsTable.orderId, body.orderId),
+      eq(ghlPurchaseEventsTable.externalProductId, body.productId),
+      eq(ghlPurchaseEventsTable.eventType, "paid"),
+    )).limit(1);
+  const productCode = mapping?.productCode ?? priorPurchase?.productCode ?? null;
+  const accepted = body.eventType === "paid"
+    ? Boolean(mapping?.enabled && mapping.deliverableReady)
+    : Boolean(productCode);
+  const [inserted] = await db.insert(ghlPurchaseEventsTable).values({
     eventId: body.eventId,
     orderId: body.orderId,
     contactId: body.contactId,
     purchaserEmail: email,
     externalProductId: body.productId,
-    productCode: mapping?.productCode,
+    productCode,
     eventType: body.eventType,
     processingStatus: accepted ? "processing" : "unmatched",
     error: accepted ? null : "Product ID is not mapped to an enabled, ready product",
     payload: body,
-  }).returning();
+  }).onConflictDoNothing({ target: ghlPurchaseEventsTable.eventId }).returning();
+  if (!inserted) {
+    const [prior] = await db.select().from(ghlPurchaseEventsTable)
+      .where(eq(ghlPurchaseEventsTable.eventId, body.eventId)).limit(1);
+    if (prior?.orderId !== body.orderId || prior?.externalProductId !== body.productId ||
+      prior?.eventType !== body.eventType || prior?.purchaserEmail !== email) {
+      return res.status(409).json({ error: "Event ID was already used for different purchase details" });
+    }
+    if (prior.processingStatus === "failed") {
+      return res.status(503).json({ received: true, duplicate: true, status: "failed", error: "Owner review and retry required" });
+    }
+    return res.json({ received: true, duplicate: true, status: prior.processingStatus });
+  }
+  const event = inserted;
   if (!accepted) return res.status(202).json({ received: true, status: "unmatched" });
 
   try {
-    const [user] = await db.select({ id: usersTable.id }).from(usersTable)
-      .where(sql`lower(${usersTable.email}) = ${email}`).limit(1);
-    const entitlementStatus = body.eventType === "paid" ? "active" : "revoked";
-    const [existing] = await db.select().from(productEntitlementsTable).where(and(
-      eq(productEntitlementsTable.externalOrderId, body.orderId),
-      eq(productEntitlementsTable.productCode, mapping.productCode),
-    )).limit(1);
-    if (existing) {
-      await db.update(productEntitlementsTable).set({
-        userId: user?.id ?? existing.userId,
-        status: entitlementStatus,
-        updatedAt: new Date(),
-      }).where(eq(productEntitlementsTable.id, existing.id));
-    } else {
-      await db.insert(productEntitlementsTable).values({
-        userId: user?.id ?? null,
-        purchaserEmail: email,
-        productCode: mapping.productCode,
-        status: entitlementStatus,
-        source: "ghl",
-        externalOrderId: body.orderId,
-      });
-    }
-    let activationStatus = "not_required";
-    if (body.eventType === "paid" && mapping.productCode === "fitness-website-core") {
-      activationStatus = await sendActivation(email);
-    }
-    await db.update(ghlPurchaseEventsTable).set({
-      processingStatus: "completed",
-      activationStatus,
-      processedAt: new Date(),
-    }).where(eq(ghlPurchaseEventsTable.id, event.id));
+    await processEvent(event);
     return res.json({ received: true, status: "completed" });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : "Fulfilment failed";
     await db.update(ghlPurchaseEventsTable).set({
       processingStatus: "failed",
-      activationStatus: mapping.productCode === "fitness-website-core" ? "failed" : "not_required",
+      activationStatus: body.eventType === "paid" && productCode === "fitness-website-core" ? "failed" : "not_required",
       error: message,
       processedAt: new Date(),
     }).where(eq(ghlPurchaseEventsTable.id, event.id));
@@ -174,6 +229,10 @@ router.patch("/admin/ghl/mappings/:productCode", async (req, res: Response) => {
   await ensureMappings();
   const body = mappingBody.parse(req.body);
   const enabled = Boolean(body.externalProductId) && body.enabled;
+  const [current] = await db.select().from(ghlProductMappingsTable)
+    .where(eq(ghlProductMappingsTable.productCode, req.params.productCode!)).limit(1);
+  if (!current) return res.status(404).json({ error: "Product mapping not found" });
+  if (enabled && !current.deliverableReady) return res.status(409).json({ error: "This product is not ready for sale" });
   const [updated] = await db.update(ghlProductMappingsTable).set({
     externalProductId: body.externalProductId,
     enabled,
@@ -186,18 +245,15 @@ router.patch("/admin/ghl/mappings/:productCode", async (req, res: Response) => {
 router.post("/admin/ghl/events/:eventId/retry", async (req, res: Response) => {
   const [event] = await db.select().from(ghlPurchaseEventsTable)
     .where(eq(ghlPurchaseEventsTable.id, req.params.eventId!)).limit(1);
-  if (!event || event.productCode !== "fitness-website-core" || event.eventType !== "paid") {
+  if (!event || event.processingStatus !== "failed" || !event.productCode) {
     return res.status(400).json({ error: "This event cannot be retried" });
   }
   try {
-    const activationStatus = await sendActivation(event.purchaserEmail);
-    await db.update(ghlPurchaseEventsTable).set({
-      processingStatus: "completed", activationStatus, error: null, processedAt: new Date(),
-    }).where(eq(ghlPurchaseEventsTable.id, event.id));
+    const activationStatus = await processEvent(event);
     return res.json({ ok: true, activationStatus });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : "Retry failed";
-    await db.update(ghlPurchaseEventsTable).set({ activationStatus: "failed", error: message })
+    await db.update(ghlPurchaseEventsTable).set({ processingStatus: "failed", activationStatus: "failed", error: message })
       .where(eq(ghlPurchaseEventsTable.id, event.id));
     return res.status(502).json({ error: message });
   }

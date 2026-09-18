@@ -732,7 +732,6 @@ function RefundsTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading } = useAdminListRefundRequests();
-  const { data: stripeStatus } = useAdminGetStripeStatus();
   const update = useAdminUpdateRefundRequest();
 
   const submit = async (
@@ -741,7 +740,6 @@ function RefundsTab() {
       status: "approved" | "denied" | "processed";
       decisionNote?: string | null;
       stripeChargeId?: string | null;
-      executeStripeRefund?: boolean;
     },
   ) => {
     try {
@@ -749,20 +747,7 @@ function RefundsTab() {
       await qc.invalidateQueries({
         queryKey: getAdminListRefundRequestsQueryKey(),
       });
-      if (result.status === "failed") {
-        toast({
-          title: "Stripe refund failed",
-          description: result.decisionNote ?? "See decision note.",
-          variant: "destructive",
-        });
-      } else if (result.stripeRefundId) {
-        toast({
-          title: "Refund issued",
-          description: `Stripe refund ${result.stripeRefundId}`,
-        });
-      } else {
-        toast({ title: `Marked ${result.status}` });
-      }
+      toast({ title: `Request marked ${result.status}`, description: "This record does not issue a payment refund or change portal access." });
     } catch (e) {
       toast({
         title: "Update failed",
@@ -828,7 +813,6 @@ function RefundsTab() {
             )}
             {(r.status === "pending" || r.status === "approved") && (
               <RefundActions
-                stripeConfigured={!!stripeStatus?.configured}
                 initialChargeId={r.stripeChargeId ?? ""}
                 onSubmit={(body) => submit(r.id, body)}
               />
@@ -841,25 +825,23 @@ function RefundsTab() {
 }
 
 function RefundActions({
-  stripeConfigured,
   initialChargeId,
   onSubmit,
 }: {
-  stripeConfigured: boolean;
   initialChargeId: string;
   onSubmit: (body: {
     status: "approved" | "denied" | "processed";
     decisionNote?: string | null;
     stripeChargeId?: string | null;
-    executeStripeRefund?: boolean;
   }) => void;
 }) {
   const [note, setNote] = useState("");
   const [chargeId, setChargeId] = useState(initialChargeId);
   return (
     <div className="space-y-2 border-t border-border pt-3">
+      <p className="text-xs text-muted-foreground">Review the order and issue any refund in your payment system first. Updating this request does not move money or revoke a product entitlement.</p>
       <Input
-        placeholder="Stripe charge ID (e.g. ch_... or py_...)"
+        placeholder="External charge or payment reference (optional)"
         value={chargeId}
         onChange={(e) => setChargeId(e.target.value)}
         data-testid="refund-charge-id"
@@ -870,27 +852,6 @@ function RefundActions({
         onChange={(e) => setNote(e.target.value)}
       />
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          onClick={() =>
-            onSubmit({
-              status: "processed",
-              decisionNote: note || null,
-              stripeChargeId: chargeId.trim() || null,
-              executeStripeRefund: true,
-            })
-          }
-          disabled={!stripeConfigured || !chargeId.trim()}
-          title={
-            !stripeConfigured
-              ? "Add STRIPE_SECRET_KEY to enable"
-              : !chargeId.trim()
-                ? "Enter a Stripe charge ID"
-                : undefined
-          }
-        >
-          Refund via Stripe
-        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -1043,18 +1004,12 @@ function SettingsTab() {
   const update = useAdminUpdateSupportSettings();
 
   const [refundPolicy, setRefundPolicy] = useState("");
-  const [autoApprove, setAutoApprove] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [windowDays, setWindowDays] = useState("");
 
   useEffect(() => {
     if (!data) return;
     setRefundPolicy(data.refundPolicy);
-    setAutoApprove(
-      data.autoApproveUnderAmount === null
-        ? ""
-        : String(data.autoApproveUnderAmount),
-    );
     setSystemPrompt(data.supportSystemPrompt);
     setWindowDays(data.refundDaysWindow ? String(data.refundDaysWindow) : "");
   }, [data]);
@@ -1064,9 +1019,7 @@ function SettingsTab() {
       await update.mutateAsync({
         data: {
           refundPolicy,
-          autoApproveUnderAmount: autoApprove.trim()
-            ? Number(autoApprove)
-            : null,
+          autoApproveUnderAmount: null,
           supportSystemPrompt: systemPrompt,
           refundDaysWindow: windowDays.trim() ? Number(windowDays) : null,
         },
@@ -1088,7 +1041,6 @@ function SettingsTab() {
 
   return (
     <div className="space-y-4">
-      <StripeStatusCard />
       <ResendStatusCard />
       <CompanyBrandingCard />
       <Card>
@@ -1106,7 +1058,7 @@ function SettingsTab() {
         </div>
         <div>
           <label className="text-xs uppercase tracking-widest text-muted-foreground">
-            Refund policy (shown to assistant + students)
+            Refund policy (shown to customers and the support assistant)
           </label>
           <Textarea
             rows={5}
@@ -1127,18 +1079,7 @@ function SettingsTab() {
               onChange={(e) => setWindowDays(e.target.value)}
             />
           </div>
-          <div>
-            <label className="text-xs uppercase tracking-widest text-muted-foreground">
-              Auto-approve under ($)
-            </label>
-            <Input
-              type="number"
-              min={0}
-              value={autoApprove}
-              onChange={(e) => setAutoApprove(e.target.value)}
-              placeholder="Leave blank to disable"
-            />
-          </div>
+          <p className="self-end text-xs leading-5 text-muted-foreground">Refund requests always go to a person for review. No refund is issued automatically from this portal.</p>
         </div>
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={update.isPending}>
