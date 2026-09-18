@@ -58,6 +58,21 @@ verified against live purchase events. Do not sell any unfinished product yet.
   saved project result. After two minutes without a result it returns to the
   previous draft or design step with a support message rather than showing
   an endless progress screen.
+- The style step now distinguishes "Pick it for me", "Choose my style", and
+  "Use my brand". The recommendation applies a niche-based palette, type
+  direction, and opening layout; the next screen explains that its four
+  choices affect only the hero section.
+- The preview and export now use class-specific labels for yoga/Pilates,
+  avoid a proof-navigation link when there is no proof, and use a split-photo
+  export for the split layout. Section eyebrow copy is editable. Four
+  synthetic exports pass local assertions; these do not prove the live AI
+  generation or full portal journey.
+- A full local portal run remains unavailable on this Windows copy: the
+  exported pnpm workspace intentionally excludes Windows native build
+  packages, and attempting a local Vite run still fails. The standalone
+  export previews are visual QA only. The next interactive customer test
+  should use an isolated Replit development copy with its database and AI
+  connection, not the live published portal.
 
 ## Not ready to launch
 
