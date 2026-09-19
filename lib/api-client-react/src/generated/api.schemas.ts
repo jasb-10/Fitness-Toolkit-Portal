@@ -103,6 +103,8 @@ export interface CreateWebsiteProjectBody {
   name?: string;
   businessProfileId?: string | null;
   briefData?: CreateWebsiteProjectBodyBriefData;
+  startFresh?: boolean;
+  seedFromProfile?: boolean;
 }
 
 export type UpdateWebsiteProjectBodyBriefData = { [key: string]: unknown };

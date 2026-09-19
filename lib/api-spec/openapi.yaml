@@ -1247,6 +1247,8 @@ components:
         name: { type: string }
         businessProfileId: { type: string, format: uuid, nullable: true }
         briefData: { type: object, additionalProperties: true }
+        startFresh: { type: boolean }
+        seedFromProfile: { type: boolean }
 
     UpdateWebsiteProjectBody:
       type: object

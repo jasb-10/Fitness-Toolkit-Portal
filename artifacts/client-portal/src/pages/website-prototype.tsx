@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { basePath, cn } from "@/lib/utils";
 import { buildGuidedPersonalHtml, GuidedPersonalSite } from "@/components/website/GuidedPersonalSite";
+import { buildCompositionHtml, CompositionSite } from "@/components/website/CompositionSites";
 
 type Stage = "home" | "brief" | "content" | "style" | "direction" | "building" | "editor" | "delivery";
 type StyleMode = "recommend" | "choose" | "brand";
@@ -72,6 +73,8 @@ type Brief = {
   businessType: string;
   mainService: string;
   audience: string;
+  primaryProblem: string;
+  desiredOutcome: string;
   location: string;
   country: string;
   deliveryMode: string;
@@ -84,6 +87,11 @@ type Brief = {
   bannerText: string;
   offer: string;
   differentiator: string;
+  serviceDetails: string;
+  objections: string;
+  voiceStyle: string;
+  voiceExamples: string;
+  wordsToAvoid: string;
   credentials: string;
   results: string;
   testimonialQuote: string;
@@ -167,6 +175,8 @@ const initialBrief: Brief = {
   businessType: "Personal trainer",
   mainService: "",
   audience: "",
+  primaryProblem: "",
+  desiredOutcome: "",
   location: "",
   country: "United Kingdom",
   deliveryMode: "In person",
@@ -179,6 +189,11 @@ const initialBrief: Brief = {
   bannerText: "",
   offer: "",
   differentiator: "",
+  serviceDetails: "",
+  objections: "",
+  voiceStyle: "Warm and professional",
+  voiceExamples: "",
+  wordsToAvoid: "",
   credentials: "",
   results: "",
   testimonialQuote: "",
@@ -291,6 +306,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const imageRef = useRef<HTMLInputElement>(null);
   
   const isAuthenticated = Boolean(userId);
+  const unlimitedAi = ["owner", "super_admin", "staff", "admin", "team"].includes(accountRole || "");
   const qc = useQueryClient();
   const projectsQuery = useListWebsiteProjects({ query: { enabled: isAuthenticated, queryKey: getListWebsiteProjectsQueryKey() } });
   const createProject = useCreateWebsiteProject();
@@ -303,38 +319,43 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const [projectId, setProjectId] = useState<string | null>(null);
   const initRef = useRef(false);
   const recoveringBuildRef = useRef(false);
+  const lastSavedStr = useRef("");
+
+  const openProject = useCallback((p: NonNullable<typeof projectsQuery.data>[number]) => {
+    const projectBrief = { ...initialBrief, ...(p.briefData || {}) } as Brief;
+    const style = (p.styleData || {}) as Record<string, unknown>;
+    setProjectId(p.id);
+    setBrief(projectBrief);
+    setStage((p.currentStage && p.currentStage !== "home" ? p.currentStage : "home") as Stage);
+    setAiChanges(unlimitedAi ? 99 : Math.max(0, 5 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
+    setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
+    setStyleMode((style.styleMode as StyleMode) || "recommend");
+    const nextPalette = (style.paletteId as string) || suggestedLook(projectBrief.businessType);
+    setPaletteId(nextPalette);
+    setFontStyle((style.fontStyle as string) || designLooks.find((look) => look.id === nextPalette)?.font || "Strong & modern");
+    setSurface((style.surface as string) || "Mostly dark");
+    setDirection(Number(style.direction || 0));
+    setCompositionId((style.compositionId as string) || "guided-personal");
+    setBrandColour((style.brandColour as string) || "#ef162f");
+    setCopy((style.copy as SiteCopy) || defaultCopy);
+    setGeneratedSections(Array.isArray(p.sections) ? p.sections as GeneratedSection[] : []);
+    if (typeof style.heroImage === "string" && style.heroImage) {
+      setHeroImage(style.heroImage);
+      setOwnPhoto(style.heroImage.startsWith("/api/storage/"));
+    } else {
+      setHeroImage("https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1800&q=85");
+      setOwnPhoto(false);
+    }
+    if (p.currentStage === "building") recoveringBuildRef.current = true;
+    lastSavedStr.current = "";
+  }, [projectsQuery.data, unlimitedAi]);
 
   useEffect(() => {
     if (!isAuthenticated || !projectsQuery.data || initRef.current) return;
     initRef.current = true;
     if (projectsQuery.data.length > 0) {
       const p = projectsQuery.data[0];
-      setProjectId(p.id);
-      setAiChanges(Math.max(0, 5 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
-      setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
-      if (p.currentStage && p.currentStage !== "home") {
-        if (p.currentStage === "building") recoveringBuildRef.current = true;
-        setStage(p.currentStage as Stage);
-      }
-      if (p.briefData) {
-        setBrief(prev => ({ ...prev, ...p.briefData }));
-        if ((p.briefData as any).sections) {
-          setBrief(prev => ({ ...prev, sections: (p.briefData as any).sections as string[] }));
-        }
-      }
-      if (p.styleData) {
-        const s = p.styleData as any;
-        if (s.styleMode) setStyleMode(s.styleMode as StyleMode);
-        if (s.paletteId) setPaletteId(s.paletteId as string);
-        if (s.fontStyle) setFontStyle(s.fontStyle as string);
-        if (s.heroImage) { setHeroImage(s.heroImage as string); setOwnPhoto((s.heroImage as string).startsWith("/api/storage/")); }
-        if (s.brandColour) setBrandColour(s.brandColour as string);
-        if (s.surface) setSurface(s.surface as string);
-        if (s.direction !== undefined) setDirection(s.direction as number);
-        if (s.compositionId) setCompositionId(s.compositionId as string);
-        if (s.copy) setCopy(s.copy as SiteCopy);
-      }
-      if (Array.isArray(p.sections)) setGeneratedSections(p.sections as GeneratedSection[]);
+      openProject(p);
     } else {
       createProject.mutate({
         data: {
@@ -348,14 +369,14 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         }
       });
     }
-  }, [isAuthenticated, projectsQuery.data]);
+  }, [isAuthenticated, projectsQuery.data, openProject]);
 
   useEffect(() => {
     const current = projectsQuery.data?.find((project) => project.id === projectId);
     if (!current) return;
     setGenerationAttempts(Number((current as { generationAttempts?: number }).generationAttempts || 0));
-    setAiChanges(Math.max(0, 5 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
-  }, [projectsQuery.data, projectId]);
+    setAiChanges(unlimitedAi ? 99 : Math.max(0, 5 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
+  }, [projectsQuery.data, projectId, unlimitedAi]);
 
   useEffect(() => {
     if (stage !== "building" || !recoveringBuildRef.current || !projectId) return;
@@ -398,7 +419,6 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     }
   }, [resetRequested, userId]);
 
-  const lastSavedStr = useRef("");
   const saveTimeout = useRef<number | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
@@ -497,7 +517,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   }, [stage]);
 
   const beginBuild = async () => {
-    if (generationAttempts >= 2) {
+    if (!unlimitedAi && generationAttempts >= 2) {
       setSavedLabel("Your two included drafts have been used. You can still edit your current page.");
       return;
     }
@@ -552,12 +572,39 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     }
   };
 
-  const reset = () => {
+  const clearLocalWebsiteState = () => {
     ["stage", "last-stage", "brief", "style-mode", "copy", "palette-id", "font-style"].forEach((key) => {
       const scopedKey = storageKey(userId, key);
       if (scopedKey) localStorage.removeItem(scopedKey);
     });
-    window.location.assign(`${window.location.pathname}?reset=1`);
+  };
+
+  const startFreshWebsite = async () => {
+    if (!isAuthenticated) return;
+    setSavedLabel("Preparing a new website...");
+    if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+    saveTimeout.current = null;
+    await saveQueue.current;
+    try {
+      const project = await createProject.mutateAsync({
+        data: {
+          name: "My Website",
+          startFresh: true,
+          seedFromProfile: true,
+        },
+      });
+      clearLocalWebsiteState();
+      openProject(project);
+      setStage("brief");
+      setDirectionsLoaded(false);
+      setDirectionOptions([]);
+      setDirectionBlocks([]);
+      setUploadedFiles([]);
+      await qc.invalidateQueries({ queryKey: getListWebsiteProjectsQueryKey() });
+      setSavedLabel("New website ready");
+    } catch {
+      setSavedLabel("Could not start a new website. Your existing website is unchanged.");
+    }
   };
 
   const updateCopy = (part: EditablePart, value: string) => setCopy((current) => ({ ...current, [part]: value }));
@@ -592,7 +639,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       const updatedCopy = (updated.styleData as { copy?: SiteCopy } | null)?.copy;
       if (!updatedCopy) throw new Error("Updated copy was missing");
       setCopy(updatedCopy);
-      setAiChanges(Math.max(0, 5 - Number((updated as { refinementAttempts?: number }).refinementAttempts || 0)));
+      setAiChanges(unlimitedAi ? 99 : Math.max(0, 5 - Number((updated as { refinementAttempts?: number }).refinementAttempts || 0)));
       setAiPrompt("");
       setSavedLabel("Edit applied and saved");
       qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
@@ -692,6 +739,28 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       return;
     }
+    if (["editorial-studio", "digital-momentum", "documentary-performance", "precision-practice", "community-schedule", "private-catalogue", "campaign-launch"].includes(compositionId)) {
+      const locale = brief.country === "United States" ? "en-US" : brief.country === "Canada" ? "en-CA" : brief.country === "Australia" ? "en-AU" : brief.country === "New Zealand" ? "en-NZ" : "en-GB";
+      const finishedHtml = buildCompositionHtml({
+        compositionId,
+        brief,
+        copy,
+        sections: generatedSections,
+        heroImage: exportedHero,
+        useImage: ownPhoto,
+        accent: palette.accent,
+        bookingUrl: safeLink(brief.bookingLink),
+        locale,
+      });
+      const blob = new Blob([finishedHtml], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${(brief.businessName || "fitness-website").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
     const generated = (id: string, fallbackTitle: string, fallbackBody: string, fallbackEyebrow: string) => {
       const section = generatedSections.find((item) => item.id === id);
       return {
@@ -778,13 +847,13 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   return (
     <div className="flex flex-col bg-background text-foreground h-full min-h-[calc(100vh-3rem)] lg:min-h-screen">
-      {stage === "home" && <HomeScreen hasProgress={Boolean(brief.businessName.trim())} start={() => setStage("brief")} resume={() => setStage(readStored<Stage>(userId, "last-stage", "brief"))} />}
+      {stage === "home" && <HomeScreen hasProgress={Boolean(brief.businessName.trim())} start={() => setStage("brief")} resume={() => setStage(readStored<Stage>(userId, "last-stage", "brief"))} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} />}
       {stage === "brief" && <BriefScreen brief={brief} setBrief={setBrief} files={uploadedFiles} upload={() => uploadRef.current?.click()} back={() => setStage("home")} next={() => setStage("content")} saved={savedLabel} />}
       {stage === "content" && <ContentScreen brief={brief} setBrief={setBrief} back={() => setStage("brief")} next={() => setStage("style")} saved={savedLabel} />}
       {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} businessType={brief.businessType} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => void continueToDirections()} setDirection={setDirection} palette={palette} />}
-      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} options={directionOptions} selectedId={compositionId} setSelectedId={setCompositionId} loading={directionsLoading} blocks={directionBlocks} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} returnToEditor={() => setStage("editor")} />}
+      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} options={directionOptions} selectedId={compositionId} setSelectedId={setCompositionId} loading={directionsLoading} blocks={directionBlocks} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} unlimitedAi={unlimitedAi} returnToEditor={() => setStage("editor")} />}
       {stage === "building" && <BuildingScreen brief={brief} palette={palette} copy={copy} heroImage={heroImage} index={buildIndex} />}
-      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} generationAttempts={generationAttempts} saved={savedLabel} />}
+      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} unlimitedAi={unlimitedAi} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} generationAttempts={generationAttempts} saved={savedLabel} />}
       {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
       <input ref={uploadRef} className="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
       <input ref={imageRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
@@ -804,11 +873,11 @@ function ShellHeader({ step, title, subtitle, saved }: { step?: number; title: s
   </header>;
 }
 
-function HomeScreen({ hasProgress, start, resume }: { hasProgress: boolean; start: () => void; resume: () => void }) {
+function HomeScreen({ hasProgress, start, resume, startFresh, startingFresh }: { hasProgress: boolean; start: () => void; resume: () => void; startFresh: () => void; startingFresh: boolean }) {
   return <div className="flex-1">
     <ShellHeader title="Your fitness website" subtitle="A guided workspace for creating, refining and downloading your personalised website." />
     <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10">
-      <section className="relative overflow-hidden rounded-[28px] bg-sidebar px-7 py-10 text-sidebar-foreground md:px-12 md:py-14"><div className="absolute -right-16 -top-24 h-80 w-80 rounded-full bg-primary/25 blur-3xl" /><div className="relative max-w-3xl"><div className="text-[10px] font-bold uppercase tracking-[.24em] text-primary">Start here</div><h2 className="mt-4 max-w-2xl text-4xl font-black tracking-[-.045em] md:text-6xl">A website that looks as professional as your coaching.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-sidebar-foreground/65">Tell us about your business, shape the visual direction and receive a polished website you can edit, approve and publish.</p><button onClick={hasProgress ? resume : start} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-4 text-sm font-bold shadow-[0_12px_35px_rgba(239,22,47,.3)]">{hasProgress ? "Continue my website" : "Create my website"}<ArrowRight className="h-4 w-4" /></button></div></section>
+      <section className="relative overflow-hidden rounded-[28px] bg-sidebar px-7 py-10 text-sidebar-foreground md:px-12 md:py-14"><div className="absolute -right-16 -top-24 h-80 w-80 rounded-full bg-primary/25 blur-3xl" /><div className="relative max-w-3xl"><div className="text-[10px] font-bold uppercase tracking-[.24em] text-primary">Start here</div><h2 className="mt-4 max-w-2xl text-4xl font-black tracking-[-.045em] md:text-6xl">A website that looks as professional as your coaching.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-sidebar-foreground/65">Tell us about your business, shape the visual direction and receive a polished website you can edit, approve and publish.</p><div className="mt-8 flex flex-wrap gap-3"><button onClick={hasProgress ? resume : start} className="inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-4 text-sm font-bold shadow-[0_12px_35px_rgba(239,22,47,.3)]">{hasProgress ? "Continue my website" : "Create my website"}<ArrowRight className="h-4 w-4" /></button>{hasProgress && <button disabled={startingFresh} onClick={startFresh} className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-4 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50"><RefreshCw className="h-4 w-4" />{startingFresh ? "Starting..." : "Start a new website"}</button>}</div>{hasProgress && <p className="mt-4 text-xs leading-5 text-white/50">A new website starts clean and imports the latest details from My Business. Your existing project is kept.</p>}</div></section>
       <section className="grid gap-5 md:grid-cols-3"><InfoCard n="01" title="Tell us about the business" text="Add your services, audience, goals, logo, photographs and any useful context." /><InfoCard n="02" title="Shape the visual direction" text="Use our recommendation, choose the style yourself or apply your existing brand." /><InfoCard n="03" title="Review and make it yours" text="Edit the page, request changes, approve it and receive the finished website files." /></section>
       <section className="grid gap-4 md:grid-cols-3"><ProductCard title="Extra Pages" detail="Expand your website with connected pages using the same brand direction." label="Bump 1" /><ProductCard title="Campaign Studio" detail="Create personalised promotions using your saved business profile." label="Upsell 1" /><ProductCard title="Meta Ad Launch Pack" detail="Turn your selected offer into a complete paid-advertising package." label="Upsell 2" /></section>
     </div>
@@ -828,6 +897,8 @@ function BriefScreen({ brief, setBrief, files, upload, back, next, saved }: { br
         <Field label="Business type" required><SelectInput value={brief.businessType} onChange={(value) => set("businessType", value)} options={["Personal trainer", "Online fitness coach", "Strength or performance coach", "Yoga or Pilates instructor", "Group fitness instructor", "Fitness studio", "Martial arts or boxing coach", "Other fitness professional"]} /></Field>
         <Field label="Main service" required><TextInput value={brief.mainService} onChange={(value) => set("mainService", value)} placeholder="Example: One-to-one strength coaching" /></Field>
         <Field label="Ideal customer" required><TextInput value={brief.audience} onChange={(value) => set("audience", value)} placeholder="Example: Busy professionals aged 35–55" /></Field>
+        <Field label="What are they struggling with?" hint="Describe the real situation in your own words. We will rewrite it for the website."><TextInput value={brief.primaryProblem} onChange={(value) => set("primaryProblem", value)} placeholder="Example: They keep starting plans but cannot stay consistent" /></Field>
+        <Field label="What do they want instead?" hint="Use a realistic outcome, without adding a guarantee."><TextInput value={brief.desiredOutcome} onChange={(value) => set("desiredOutcome", value)} placeholder="Example: Feel stronger and confident training independently" /></Field>
         <Field label="Location"><TextInput value={brief.location} onChange={(value) => set("location", value)} placeholder="Manchester, UK or Online" /></Field>
         <Field label="Country" required><SelectInput value={brief.country} onChange={(value) => set("country", value)} options={["United Kingdom", "United States", "Canada", "Australia", "New Zealand", "Other"]} /></Field>
         <Field label="How do you deliver the service?"><SelectInput value={brief.deliveryMode} onChange={(value) => set("deliveryMode", value)} options={["In person", "Online", "Both in person and online"]} /></Field>
@@ -835,7 +906,7 @@ function BriefScreen({ brief, setBrief, files, upload, back, next, saved }: { br
         {brief.businessScale === "Multiple locations" && <Field label="Number of locations"><TextInput value={brief.locationCount} onChange={(value) => set("locationCount", value)} placeholder="Example: 4" /></Field>}
         <Field label="Main website goal"><SelectInput value={brief.goal} onChange={(value) => set("goal", value)} options={["Book a consultation", "Receive enquiries", "Fill classes", "Sell a programme", "Promote online coaching", "Build professional credibility"]} /></Field>
         <div className="md:col-span-2"><Field label="Booking or enquiry destination" hint="Required before approval. Add your booking URL, or mailto:you@example.com or tel:+441234567890 if you do not use a booking tool."><TextInput value={brief.bookingLink} onChange={(value) => set("bookingLink", value)} placeholder="https://..." /></Field></div>
-        <div className="md:col-span-2"><Field label="Tell us anything else" hint="Paste existing copy, social bios, testimonials or rough notes. It does not need to be organised."><textarea value={brief.context} onChange={(event) => set("context", event.target.value)} className="min-h-36 w-full rounded-xl border border-border px-4 py-3 text-sm outline-none transition focus:border-border focus:ring-4 focus:ring-[#ef162f]/10" placeholder="Tell us about your story, services, approach, qualifications, results or anything else that would help..." /></Field></div>
+        <div className="md:col-span-2"><Field label="Source material and rough notes" hint="Paste existing copy, social bios or unorganised notes. These are treated as factual source material. The website writer will structure and rewrite them rather than simply pasting them."><textarea value={brief.context} onChange={(event) => set("context", event.target.value)} className="min-h-36 w-full rounded-xl border border-border px-4 py-3 text-sm outline-none transition focus:border-border focus:ring-4 focus:ring-[#ef162f]/10" placeholder="Tell us about your story, services, approach, qualifications, results or anything else that would help..." /></Field></div>
       </div>
       <div className="mt-6"><Field label="Your photos and image assets" hint="JPG, PNG, WebP or SVG, up to 25 MB each. The first uploaded image becomes your hero; other images are saved for later use."><button onClick={upload} className="flex min-h-32 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary text-sm text-muted-foreground hover:border-border"><Upload className="mb-2 h-5 w-5" /><span className="font-semibold text-muted-foreground">Choose images</span><span className="mt-1 text-xs">You can add more later</span></button></Field>{files.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{files.map((file, index) => <span key={`${file}-${index}`} className="inline-flex items-center rounded-full bg-secondary px-3 py-1.5 text-xs">{file}</span>)}</div>}</div>
       <div className="mt-6 grid gap-5 border-t border-border pt-6 md:grid-cols-2"><Field label="How should the site use images?"><SelectInput value={brief.imagePreference} onChange={(value) => set("imagePreference", value)} options={["Auto", "Image-light", "Image-rich"]} /></Field><Field label="Preferred page depth" hint="Auto prevents a thin brief being stretched into an empty page."><SelectInput value={brief.contentLength} onChange={(value) => set("contentLength", value)} options={["Auto", "Compact", "Standard", "Expanded"]} /></Field></div>
@@ -854,6 +925,8 @@ function ContentScreen({ brief, setBrief, back, next, saved }: { brief: Brief; s
       <section className="space-y-7 rounded-2xl border border-border bg-card p-6 md:p-8">
         <div><div className="text-sm font-black">Sections to include</div><p className="mt-1 text-xs leading-5 text-muted-foreground">The page will still have a headline and main action. Pick the supporting sections that fit your business.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{pageSections.map((section) => <button key={section.id} type="button" onClick={() => toggleSection(section.id)} className={cn("flex items-start gap-3 rounded-xl border p-4 text-left transition", selected.includes(section.id) ? "border-border bg-secondary" : "border-border hover:border-border")}><span className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border", selected.includes(section.id) ? "border-border bg-secondary text-white" : "border-border")}>{selected.includes(section.id) && <Check className="h-3.5 w-3.5" />}</span><span><span className="block text-sm font-bold">{section.name}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{section.purpose}</span></span></button>)}</div></div>
         <div className="grid gap-5 border-t border-border pt-7 md:grid-cols-2"><div className="md:col-span-2"><Field label="Your offer or first-step invitation" hint="For example: a free consultation, introductory class or a named programme."><TextInput value={brief.offer} onChange={(value) => set("offer", value)} placeholder="Example: Book a free 20-minute coaching call" /></Field></div><div className="md:col-span-2"><Field label="What makes you different?" hint="Your genuine method or experience. Avoid claims you cannot prove."><textarea value={brief.differentiator} onChange={(event) => set("differentiator", event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="How do you coach, teach or support clients differently?" /></Field></div>
+          <div className="md:col-span-2"><Field label="What is included?" hint="Rough notes are fine. Add the real service components the customer receives."><textarea value={brief.serviceDetails} onChange={(event) => set("serviceDetails", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Weekly one-to-one sessions, programme updates, technique review and message support" /></Field></div>
+          <div className="md:col-span-2"><Field label="What usually stops someone booking?" hint="This helps the page answer the buyer's real concern without inventing promises."><textarea value={brief.objections} onChange={(event) => set("objections", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: They worry they are too unfit to begin or cannot fit sessions around work" /></Field></div>
           {selected.includes("approach") && <div className="md:col-span-2"><Field label="How do customers get started?" hint="A few rough steps are enough."><textarea value={brief.process} onChange={(event) => set("process", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Book a call, meet your coach, start your plan" /></Field></div>}
           {/class|studio|group|yoga|pilates/i.test(`${brief.goal} ${brief.businessType}`) && <div className="md:col-span-2"><Field label="Real class or session schedule" hint="Add only times you want displayed. A static schedule will never pretend to show live capacity."><textarea value={brief.schedule} onChange={(event) => set("schedule", event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Reformer Foundations, Monday and Wednesday at 18:00" /></Field></div>}
           {/sell|programme|online|challenge|intake/i.test(`${brief.goal} ${brief.mainService} ${brief.offer}`) && <><Field label="Programme start date" hint="Leave blank for an evergreen programme."><TextInput value={brief.programmeStart} onChange={(value) => set("programmeStart", value)} placeholder="Example: 14 October 2026" /></Field><Field label="Real capacity" hint="Only include a limit that genuinely applies."><TextInput value={brief.programmeCapacity} onChange={(value) => set("programmeCapacity", value)} placeholder="Example: 12 places" /></Field></>}
@@ -861,6 +934,9 @@ function ContentScreen({ brief, setBrief, back, next, saved }: { brief: Brief; s
           {selected.includes("results") && <><Field label="Qualifications or credible proof"><TextInput value={brief.credentials} onChange={(value) => set("credentials", value)} placeholder="Example: Level 3 PT, 8 years coaching" /></Field><Field label="Results you can substantiate"><TextInput value={brief.results} onChange={(value) => set("results", value)} placeholder="Example: 200+ clients coached" /></Field></>}
           {selected.includes("testimonial") && <><div className="md:col-span-2"><Field label="A real client quote" hint="We will not invent testimonials or transformation results."><textarea value={brief.testimonialQuote} onChange={(event) => set("testimonialQuote", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Paste the client's approved words here" /></Field></div><Field label="Name to display"><TextInput value={brief.testimonialName} onChange={(value) => set("testimonialName", value)} placeholder="Example: Sarah M." /></Field></>}
           {selected.includes("faq") && <><Field label="Common question"><TextInput value={brief.faqQuestion} onChange={(value) => set("faqQuestion", value)} placeholder="Example: Do I need experience?" /></Field><Field label="Your answer"><TextInput value={brief.faqAnswer} onChange={(value) => set("faqAnswer", value)} placeholder="Example: No. We adapt to your starting point." /></Field></>}
+          <Field label="Writing style"><SelectInput value={brief.voiceStyle} onChange={(value) => set("voiceStyle", value)} options={["Warm and professional", "Direct and confident", "Calm and reassuring", "Energetic and motivating", "Premium and understated", "Friendly and conversational"]} /></Field>
+          <Field label="Words or phrases to avoid"><TextInput value={brief.wordsToAvoid} onChange={(value) => set("wordsToAvoid", value)} placeholder="Example: hustle, no excuses, life-changing" /></Field>
+          <div className="md:col-span-2"><Field label="Optional writing samples" hint="Paste a few messages, captions or paragraphs that sound like you. The writer will learn the tone without copying private client details."><textarea value={brief.voiceExamples} onChange={(event) => set("voiceExamples", event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="A few examples of how you naturally communicate..." /></Field></div>
         </div>
         <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-6"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><button onClick={next} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3 text-sm font-bold text-white">Choose design style<ArrowRight className="h-4 w-4" /></button></div>
       </section>
@@ -906,26 +982,34 @@ function MiniSite({ briefName, copy, palette, heroImage, surface, fontStyle }: {
   return <aside className="self-start rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-5"><div className="mb-3 flex items-center justify-between px-1"><span className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Live preview</span><span className="text-[10px] text-muted-foreground">Based on your choices</span></div><div className="overflow-hidden rounded-xl border border-black/10" style={{ background: surface === "Mostly light" ? palette.light : palette.dark, color: surface === "Mostly light" ? palette.dark : "white" }}><div className="flex items-center justify-between px-5 py-4 text-[8px] font-bold"><span>{(briefName || "YOUR BUSINESS").toUpperCase()}</span><span className="rounded-md px-3 py-2 text-white" style={{ background: palette.accent }}>Get started</span></div><div className="relative min-h-[440px] overflow-hidden p-7"><img src={heroImage} alt="Fitness website example" className="absolute inset-0 h-full w-full object-cover opacity-60" /><div className="absolute inset-0" style={{ background: `linear-gradient(90deg, ${palette.dark} 12%, ${palette.dark}c9 50%, transparent)` }} /><div className="relative z-10 mt-24 max-w-[290px] text-white"><div className="mb-4 h-1 w-12" style={{ background: palette.accent }} /><h3 className={cn("text-4xl uppercase leading-[.9]", fontStyle === "Premium editorial" ? "font-serif normal-case" : "font-black")}>{copy.headline}</h3><p className="mt-4 text-xs leading-5 text-white/75">{copy.subheadline}</p><button className="mt-5 rounded-lg px-4 py-3 text-xs font-bold" style={{ background: palette.accent }}>Start your journey</button></div></div></div></aside>;
 }
 
-function DirectionScreen({ brief, setBrief, copy, palette, heroImage, options, selectedId, setSelectedId, loading, blocks, back, build, hasDraft, generationAttempts, returnToEditor }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; options: DirectionOption[]; selectedId: string; setSelectedId: (id: string) => void; loading: boolean; blocks: string[]; back: () => void; build: () => void; hasDraft: boolean; generationAttempts: number; returnToEditor: () => void }) {
+function DirectionScreen({ brief, setBrief, copy, palette, heroImage, options, selectedId, setSelectedId, loading, blocks, back, build, hasDraft, generationAttempts, unlimitedAi, returnToEditor }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; options: DirectionOption[]; selectedId: string; setSelectedId: (id: string) => void; loading: boolean; blocks: string[]; back: () => void; build: () => void; hasDraft: boolean; generationAttempts: number; unlimitedAi: boolean; returnToEditor: () => void }) {
   return <div><ShellHeader step={4} title="Choose your website direction" subtitle="These are complete page systems that fit the information you supplied. Your choice changes the whole visitor journey, not only the opening image." />
     <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10">
       {loading && <div className="flex min-h-72 items-center justify-center rounded-2xl border border-border bg-card"><div className="text-center"><RefreshCw className="mx-auto h-6 w-6 animate-spin text-primary" /><div className="mt-4 font-bold">Checking content, images and conversion route</div><p className="mt-2 text-sm text-muted-foreground">We only show designs your brief can complete properly.</p></div></div>}
       {!loading && blocks.length > 0 && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6"><div className="font-black text-amber-950">A few essentials are still missing</div><p className="mt-2 text-sm text-amber-900">Add these before the portal recommends a complete design:</p><ul className="mt-4 space-y-2 text-sm text-amber-950">{blocks.map((block) => <li key={block} className="flex gap-2"><span>•</span>{block}</li>)}</ul></section>}
-      {!loading && options.length > 0 && <div className="grid gap-5 lg:grid-cols-3">{options.map((item, index) => {
+      {!loading && options.length > 0 && <div className="grid gap-5 lg:grid-cols-3">{options.map((item) => {
         const active = selectedId === item.id;
         const imageLight = item.assetMode === "image-light";
         return <button key={item.id} onClick={() => setSelectedId(item.id)} className={cn("overflow-hidden rounded-2xl border-2 bg-card text-left transition", active ? "border-primary shadow-[0_18px_55px_rgba(239,22,47,.13)]" : "border-transparent ring-1 ring-[#dfe2e5] hover:ring-[#aeb3b9]")}>
-          <div className="relative h-64 overflow-hidden" style={{ background: index === 0 ? palette.dark : index === 1 ? palette.light : "#eee6da" }}>
-            {!imageLight && <img src={heroImage} alt="" className={cn("absolute h-full object-cover", index === 1 ? "right-0 w-[56%]" : "inset-0 w-full", index !== 1 && "opacity-65")} />}
-            <div className="absolute inset-0" style={{ background: imageLight ? `radial-gradient(circle at 80% 15%,${palette.accent}33,transparent 35%)` : index === 1 ? `linear-gradient(90deg,${palette.light} 0%,${palette.light} 44%,transparent 82%)` : `linear-gradient(90deg,${palette.dark} 4%,${palette.dark}e8 48%,transparent)` }} />
-            <div className={cn("relative z-10 flex h-full flex-col justify-center p-6", index === 1 ? "max-w-[58%]" : "max-w-[86%]", index === 1 ? "text-slate-950" : "text-white")}><span className="text-[8px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>{item.name}</span><div className={cn("mt-4 leading-[.94]", index === 2 ? "font-serif text-3xl italic" : "text-3xl font-black")}>{copy.headline}</div><span className="mt-6 w-fit border-b pb-1 text-[9px] font-bold" style={{ borderColor: palette.accent }}>{brief.goal}</span></div>
-          </div>
+          <DirectionThumbnail option={item} copy={copy} brief={brief} heroImage={heroImage} accent={palette.accent} imageLight={imageLight} />
           <div className="p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-sans text-lg font-bold">{item.name}</h3><div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{item.lengthMode} · {item.assetMode.replace("-", " ")}</div></div>{active && <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />}</div><p className="mt-3 text-xs leading-5 text-muted-foreground">{item.description}</p><div className="mt-4 rounded-xl bg-secondary p-3 text-xs leading-5"><strong>Built to help visitors:</strong> {item.visitorJob}</div>{item.warnings.length > 0 && <p className="mt-3 text-[11px] leading-5 text-muted-foreground">{item.warnings[0]}</p>}</div>
         </button>;
       })}</div>}
       <section className="rounded-2xl border border-border bg-card p-6"><div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Page plan</div><h2 className="mt-2 text-2xl font-black">Built around {brief.goal.toLowerCase()}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">The page length adapts to the evidence supplied. Empty or unsupported sections are removed instead of filled with generic copy.</p><div className="mt-4 flex flex-wrap gap-2">{(brief.sections || []).map((section) => <span key={section} className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold capitalize">{section}</span>)}</div></div><div className="rounded-xl bg-secondary p-5"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={brief.banner} onChange={(event) => setBrief({ ...brief, banner: event.target.checked })} className="mt-1 accent-[#ef162f]" /><span><span className="text-sm font-bold">Announcement banner</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Use only for a real opening, launch or time-sensitive offer.</span></span></label>{brief.banner && <input value={brief.bannerText} onChange={(event) => setBrief({ ...brief, bannerText: event.target.value })} placeholder="Example: Three coaching places available this month" className="mt-4 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-border" />}</div></div></section>
-      <div className="flex flex-wrap items-center justify-between gap-3"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><div className="flex flex-wrap items-center gap-3">{hasDraft && <button onClick={returnToEditor} className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold">Return to my current draft</button>}<button onClick={build} disabled={generationAttempts >= 2 || loading || options.length === 0 || !selectedId} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white disabled:opacity-40">{hasDraft ? "Generate this direction" : "Build my website"}<ArrowRight className="h-4 w-4" /></button><span className="text-xs text-muted-foreground">{Math.max(0, 2 - generationAttempts)} AI drafts remaining. Design controls and manual edits use no AI.</span></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><div className="flex flex-wrap items-center gap-3">{hasDraft && <button onClick={returnToEditor} className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold">Return to my current draft</button>}<button onClick={build} disabled={(!unlimitedAi && generationAttempts >= 2) || loading || options.length === 0 || !selectedId} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white disabled:opacity-40">{hasDraft ? "Generate this direction" : "Build my website"}<ArrowRight className="h-4 w-4" /></button><span className="text-xs text-muted-foreground">{unlimitedAi ? "Owner testing mode. Customer allowances are not applied to this account." : `${Math.max(0, 2 - generationAttempts)} AI drafts remaining. Design controls and manual edits use no AI.`}</span></div></div>
     </div></div>;
+}
+
+function DirectionThumbnail({ option, copy, brief, heroImage, accent, imageLight }: { option: DirectionOption; copy: SiteCopy; brief: Brief; heroImage: string; accent: string; imageLight: boolean }) {
+  const id = option.id;
+  if (id === "editorial-studio") return <div className="grid h-64 grid-cols-[1fr_.8fr] bg-[#f2eee6] text-[#20211e]"><div className="flex flex-col justify-center p-6"><span className="text-[8px] uppercase tracking-[.22em] text-[#7b6658]">Editorial studio</span><div className="mt-4 font-serif text-3xl leading-[.95]">{copy.headline}</div><span className="mt-6 text-[9px] uppercase tracking-wider">{brief.goal} →</span></div><div className="relative overflow-hidden bg-[#c9c2b5]">{!imageLight && <img src={heroImage} alt="" className="h-full w-full object-cover" />}</div></div>;
+  if (id === "digital-momentum") return <div className="relative h-64 overflow-hidden bg-[#090b18] p-6 text-white"><div className="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-[#6048ff]/35 blur-2xl" /><span className="relative text-[8px] uppercase tracking-[.22em] text-[#b7ff38]">Digital momentum</span><div className="relative mt-5 max-w-[90%] text-4xl font-black uppercase leading-[.82] tracking-[-.06em]">{copy.headline}</div><div className="absolute bottom-5 left-6 right-6 grid grid-cols-3 gap-2">{[1,2,3].map((n) => <div key={n} className="h-10 border border-white/15 bg-white/5" />)}</div></div>;
+  if (id === "documentary-performance") return <div className="relative h-64 overflow-hidden bg-black text-white">{!imageLight && <img src={heroImage} alt="" className="absolute inset-0 h-full w-full object-cover grayscale opacity-70" />}<div className="absolute inset-0 bg-gradient-to-t from-black via-transparent" /><div className="absolute bottom-5 left-5 max-w-[80%]"><span className="text-[8px] uppercase tracking-[.2em]" style={{ color: accent }}>Documentary performance</span><div className="mt-3 text-3xl font-black uppercase leading-[.86]">{copy.headline}</div></div></div>;
+  if (id === "precision-practice") return <div className="h-64 border-y-2 border-black bg-[#f3f2ee] text-black"><div className="grid h-full grid-cols-[36px_1fr_90px]"><div className="border-r-2 border-black p-2 text-[7px] [writing-mode:vertical-rl]">CASE FILE / 01</div><div className="flex flex-col justify-center p-5"><span className="text-[8px] uppercase tracking-[.2em]" style={{ color: accent }}>Precision practice</span><div className="mt-4 text-3xl font-black uppercase leading-[.9]">{copy.headline}</div></div><div className="border-l-2 border-black bg-white p-3"><div className="h-2 w-full bg-black" /><div className="mt-5 space-y-3">{[1,2,3].map((n) => <div key={n} className="h-px bg-black/30" />)}</div></div></div></div>;
+  if (id === "community-schedule") return <div className="h-64 border-y-2 border-black bg-[#ff6047] p-5 text-black"><span className="text-[8px] font-black uppercase tracking-[.2em]">Community schedule</span><div className="mt-4 text-4xl font-black uppercase leading-[.82]">{copy.headline}</div><div className="mt-6 grid grid-cols-3 border-2 border-black">{["#ffd33d","#8cd5ff","#91df9b"].map((colour) => <div key={colour} className="h-12 border-r-2 border-black last:border-r-0" style={{ background: colour }} />)}</div></div>;
+  if (id === "private-catalogue") return <div className="grid h-64 grid-cols-[1fr_.65fr] bg-[#f4f1e9] p-6 text-[#24221e]"><div className="flex flex-col justify-center"><span className="text-[8px] uppercase tracking-[.2em] text-black/45">Private catalogue</span><div className="mt-4 font-serif text-3xl leading-none">{copy.headline}</div><span className="mt-6 text-[8px] uppercase tracking-[.16em]">By appointment →</span></div><div className="relative my-4 overflow-hidden bg-[#d6d0c3]">{!imageLight && <img src={heroImage} alt="" className="h-full w-full object-cover" />}<div className="absolute inset-2 border border-white/60" /></div></div>;
+  if (id === "campaign-launch") return <div className="relative h-64 border-y-2 border-black bg-[#fff8e7] p-5 text-black"><div className="absolute right-4 top-4 rotate-6 rounded-full border-2 border-black bg-[#ffd53d] px-3 py-5 text-[7px] font-black uppercase">Focused offer</div><span className="text-[8px] font-black uppercase tracking-[.2em]">Campaign launch</span><div className="mt-5 max-w-[84%] text-4xl font-black uppercase leading-[.82]">{copy.headline}</div><div className="absolute bottom-0 left-0 right-0 h-10 border-t-2 border-black bg-[#ff4937]" /></div>;
+  return <div className="relative h-64 bg-[#1d3026] p-6 text-white"><span className="text-[8px] uppercase tracking-[.2em]" style={{ color: accent }}>Guided personal</span><div className="mt-5 font-serif text-3xl leading-none">{copy.headline}</div></div>;
 }
 
 function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Brief; palette: PaletteChoice; copy: SiteCopy; heroImage: string; index: number }) {
@@ -937,15 +1021,15 @@ function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Bri
   </div>;
 }
 
-function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, compositionId, ownPhoto, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, changeDirection, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; changeDirection: () => void; generationAttempts: number; saved: string }) {
-  return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Edit the hero and about text in the preview; edit the remaining sections in the right panel.</div></div><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
+function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, compositionId, ownPhoto, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, unlimitedAi, approve, changeDirection, startFresh, startingFresh, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; unlimitedAi: boolean; approve: () => void; changeDirection: () => void; startFresh: () => void; startingFresh: boolean; generationAttempts: number; saved: string }) {
+  return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Edit the hero and about text in the preview; edit the remaining sections in the right panel.</div></div><button onClick={startFresh} disabled={startingFresh} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold disabled:opacity-50"><RefreshCw className="h-4 w-4" />{startingFresh ? "Starting..." : "New website"}</button><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
     <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
       <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
       <div className="mt-6 border-t pt-5"><Field label="Where should the main button go?" hint="Booking URL, mailto: email link, or tel: phone link."><TextInput value={brief.bookingLink} onChange={(value) => setBrief({ ...brief, bookingLink: value })} placeholder="https://..." /></Field>{brief.bookingLink && !safeLink(brief.bookingLink) && <p className="mt-2 text-xs text-red-700">This link is not valid yet.</p>}</div>
       <details className="mt-6 border-t pt-5"><summary className="cursor-pointer text-sm font-black">Evidence and FAQ</summary><div className="mt-4 space-y-4">{([['credentials', 'Qualifications'], ['results', 'Verified results'], ['testimonialQuote', 'Approved client quote'], ['testimonialName', 'Client name'], ['faqQuestion', 'Common question'], ['faqAnswer', 'Your answer']] as const).map(([key, label]) => <Field key={key} label={label}><textarea value={brief[key]} onChange={(event) => setBrief({ ...brief, [key]: event.target.value })} className="min-h-16 w-full rounded-xl border border-border p-3 text-sm" /></Field>)}</div></details>
       <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} aria-label={`Use ${item.name} colours`} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select><button onClick={changeDirection} className="mt-3 w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold">Change opening layout</button><p className="mt-2 text-xs text-muted-foreground">Choose a layout without using an AI draft, or generate a fresh draft if you have one left ({Math.max(0, 2 - generationAttempts)} remaining).</p></div>
       <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Page sections</div><p className="mt-1 text-xs text-muted-foreground">Changes here appear in both your preview and downloaded page.</p>{generatedSections.filter((section) => ["services", "approach", "about", "contact"].includes(section.id)).map((section) => <details key={section.id} className="mt-3 rounded-xl border border-border p-3"><summary className="cursor-pointer text-sm font-semibold capitalize">{section.id}</summary><label className="mt-4 block text-xs font-semibold">Small label<input value={section.eyebrow || ""} onChange={(event) => updateSection(section.id, "eyebrow", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Heading<input value={section.title} onChange={(event) => updateSection(section.id, "title", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Text<textarea value={section.id === "about" ? copy.about : section.body} onChange={(event) => section.id === "about" ? updateCopy("about", event.target.value) : updateSection(section.id, "body", event.target.value)} className="mt-2 min-h-28 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>{section.highlights?.map((highlight, index) => <label key={index} className="mt-3 block text-xs font-semibold">{section.id === "approach" ? "Step" : "Card"} {index + 1}<textarea value={highlight} onChange={(event) => updateHighlight(section.id, index, event.target.value)} className="mt-2 min-h-16 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>)}</details>)}</div>
-      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without adding new claims." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{aiChanges} assisted edits remaining</span><button aria-label="Apply copy edit" onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div></aside></div>
+      <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without adding new claims." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{unlimitedAi ? "Owner testing mode" : `${aiChanges} assisted edits remaining`}</span><button aria-label="Apply copy edit" onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div></aside></div>
   </div>;
 }
 
@@ -953,6 +1037,9 @@ function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, dir
   const narrow = previewSize === "mobile";
   if (compositionId === "guided-personal") {
     return <GuidedPersonalSite brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent === "#ef162f" ? "#e0bca9" : palette.accent} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
+  }
+  if (["editorial-studio", "digital-momentum", "documentary-performance", "precision-practice", "community-schedule", "private-catalogue", "campaign-launch"].includes(compositionId)) {
+    return <CompositionSite compositionId={compositionId} brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
   }
   const selected = "relative outline outline-2 outline-offset-4 outline-[#ef162f]";
   const included = (brief.sections || initialBrief.sections).filter((id) => id !== "approach" || generatedSections.some((section) => section.id === id));

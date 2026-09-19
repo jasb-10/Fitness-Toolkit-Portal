@@ -2,7 +2,7 @@ import { Router, type IRouter, type Response } from "express";
 import { db, businessProfilesTable, websiteProjectsTable, projectAssetsTable } from "@workspace/db";
 import { z } from "zod";
 import { eq, and, desc, lt, ne, sql } from "drizzle-orm";
-import { PRODUCT_CODES, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
+import { PRODUCT_CODES, isStaffRole, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
 import {
   analyseDirections,
   hasBlockingIssues,
@@ -25,8 +25,9 @@ const updateBusinessProfileBody = z.object({
 const createWebsiteProjectBody = z.object({
   name: z.string().optional(), businessProfileId: z.string().uuid().nullable().optional(),
   briefData: z.record(z.unknown()).optional(),
+  startFresh: z.boolean().optional(), seedFromProfile: z.boolean().optional(),
 });
-const updateWebsiteProjectBody = createWebsiteProjectBody.extend({
+const updateWebsiteProjectBody = createWebsiteProjectBody.omit({ startFresh: true, seedFromProfile: true }).extend({
   status: z.enum(["approved"]).optional(), currentStage: z.string().optional(),
   styleData: z.record(z.unknown()).optional(),
   sections: z.array(z.record(z.unknown())).optional(),
@@ -111,12 +112,26 @@ router.post("/website-projects", async (req, res: Response) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
     const [existing] = await tx.select().from(websiteProjectsTable)
       .where(eq(websiteProjectsTable.userId, userId)).orderBy(desc(websiteProjectsTable.updatedAt)).limit(1);
-    if (existing) return { project: existing, created: false };
+    if (existing && !body.startFresh) return { project: existing, created: false };
+    const [profile] = await tx.select().from(businessProfilesTable)
+      .where(eq(businessProfilesTable.userId, userId)).limit(1);
+    const profileBrief = body.seedFromProfile && profile ? {
+      businessName: profile.businessName,
+      businessType: profile.niche,
+      mainService: profile.service,
+      audience: profile.audience,
+      location: profile.location,
+      goal: profile.conversionGoal,
+      bookingLink: profile.destinationUrl ?? "",
+    } : {};
     const [project] = await tx.insert(websiteProjectsTable).values({
       userId,
       name: body.name ?? "My fitness website",
-      businessProfileId: body.businessProfileId ?? null,
-      briefData: body.briefData ?? {},
+      businessProfileId: body.businessProfileId ?? profile?.id ?? null,
+      briefData: { ...profileBrief, ...(body.briefData ?? {}) },
+      // Starting over is a content action, not a way to reset paid AI usage.
+      generationAttempts: existing?.generationAttempts ?? 0,
+      refinementAttempts: existing?.refinementAttempts ?? 0,
     }).returning();
     return { project, created: true };
   });
@@ -220,7 +235,7 @@ router.post("/website-projects/:projectId/assets", async (req, res: Response) =>
 });
 
 router.post("/website-projects/:projectId/generate", async (req, res: Response) => {
-  const { userId } = req as unknown as AuthedRequest;
+  const { userId, userRole } = req as unknown as AuthedRequest;
   const { projectId } = uuidParams.parse(req.params);
   const project = await ownedProject(projectId, userId);
   if (!project) return res.status(404).json({ error: "Website project not found" });
@@ -243,7 +258,12 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
     currentStage: "building",
     progressData: [{ step: "generation", status: "running", startedAt: startedAt.toISOString() }],
     updatedAt: startedAt,
-  }).where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), ne(websiteProjectsTable.status, "generating"), lt(websiteProjectsTable.generationAttempts, MAX_GENERATIONS))).returning({ id: websiteProjectsTable.id });
+  }).where(and(
+    eq(websiteProjectsTable.id, projectId),
+    eq(websiteProjectsTable.userId, userId),
+    ne(websiteProjectsTable.status, "generating"),
+    isStaffRole(userRole) ? undefined : lt(websiteProjectsTable.generationAttempts, MAX_GENERATIONS),
+  )).returning({ id: websiteProjectsTable.id });
   if (!reserved) return res.status(429).json({ error: "Your included website drafts have been used. Manual editing is still available." });
 
   try {
@@ -252,7 +272,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
-      max_completion_tokens: 2800,
+      max_completion_tokens: selectedDirection.lengthMode === "compact" ? 1500 : selectedDirection.lengthMode === "expanded" ? 2800 : 2200,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -326,6 +346,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
 First infer the visitor's immediate question, the business's real differentiator, the single desired action, and the most credible page narrative. Then write the page as a coherent visitor journey rather than filling a template field by field.
 Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, client numbers, availability, or locations. Never imply a claim is proven when it is only an aspiration.
 Transform rough notes into polished, specific visitor-facing copy. Do not simply paste an intake answer as a section paragraph. If a supplied phrase is already strong, you may retain it; exact testimonials and their attribution must be preserved verbatim.
+Use primaryProblem, desiredOutcome, serviceDetails and objections to understand the buying decision, not as sentences to paste. Follow voiceStyle and learn the rhythm of voiceExamples without reproducing private names or details. Never use a word or phrase listed in wordsToAvoid.
 Make the hero immediately explain what is offered, for whom, and why it is relevant. Avoid vague headlines such as "Unlock your potential", generic motivation, AI clichés, em dashes, and the construction "not X, but Y". Use natural English appropriate to the customer's country when identifiable; otherwise use British English.
 The application has selected a complete-page composition and content length. Respect its visitor job and visual grammar. These control the narrative emphasis, not factual content. A compact result must feel intentionally complete rather than shortened.
 Create only the IDs selected in websiteBrief.sections, each at most once. Return useful services, approach, about and contact sections when selected. Return results only when genuine results or credentials are supplied, testimonial only when a real quote is supplied, and FAQ only when a real question and answer are supplied. Do not create filler to compensate for missing evidence.
@@ -346,7 +367,7 @@ Every copy field and section must include provenance. sourceFields must name onl
               conversionGoal: profile.conversionGoal,
               evidence: profile.evidenceData,
             } : null,
-            websiteBrief: project.briefData,
+            websiteBrief: Object.fromEntries(Object.entries(project.briefData).filter(([, value]) => value !== "" && value !== null && value !== undefined)),
             selectedStyle: project.styleData,
             generationPlan: selectedDirection,
           }),
@@ -448,7 +469,7 @@ Every copy field and section must include provenance. sourceFields must name onl
 });
 
 router.post("/website-projects/:projectId/refine", async (req, res: Response) => {
-  const { userId } = req as unknown as AuthedRequest;
+  const { userId, userRole } = req as unknown as AuthedRequest;
   const { projectId } = uuidParams.parse(req.params);
   const project = await ownedProject(projectId, userId);
   if (!project) return res.status(404).json({ error: "Website project not found" });
@@ -456,14 +477,18 @@ router.post("/website-projects/:projectId/refine", async (req, res: Response) =>
   const [reserved] = await db.update(websiteProjectsTable).set({
     refinementAttempts: sql`${websiteProjectsTable.refinementAttempts} + 1`,
     updatedAt: new Date(),
-  }).where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), lt(websiteProjectsTable.refinementAttempts, MAX_REFINEMENTS))).returning({ id: websiteProjectsTable.id });
+  }).where(and(
+    eq(websiteProjectsTable.id, projectId),
+    eq(websiteProjectsTable.userId, userId),
+    isStaffRole(userRole) ? undefined : lt(websiteProjectsTable.refinementAttempts, MAX_REFINEMENTS),
+  )).returning({ id: websiteProjectsTable.id });
   if (!reserved) return res.status(429).json({ error: "Your included assisted edits have been used. Manual editing is still available." });
 
   try {
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
-      max_completion_tokens: 900,
+      max_completion_tokens: 350,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -472,12 +497,9 @@ router.post("/website-projects/:projectId/refine", async (req, res: Response) =>
           schema: {
             type: "object",
             additionalProperties: false,
-            required: ["headline", "subheadline", "about", "button"],
+            required: ["value"],
             properties: {
-              headline: { type: "string" },
-              subheadline: { type: "string" },
-              about: { type: "string" },
-              button: { type: "string" },
+              value: { type: "string" },
             },
           },
         },
@@ -485,10 +507,10 @@ router.post("/website-projects/:projectId/refine", async (req, res: Response) =>
       messages: [
         {
           role: "system",
-          content: `Refine website copy for a fitness or wellness business.
-Follow the requested change, focusing on the selected field while keeping the complete copy coherent.
+          content: `Refine one selected field of website copy for a fitness or wellness business.
+Follow the requested change and return only the replacement value for the selected field.
 Use only facts present in the supplied brief and current copy. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, or locations.
-Write natural British English, avoid hype and em dashes, and return JSON only.`,
+Respect the country's natural English. Avoid hype, AI clichés, em dashes and "not X, but Y" constructions. Return JSON only.`,
         },
         {
           role: "user",
@@ -503,7 +525,11 @@ Write natural British English, avoid hype and em dashes, and return JSON only.`,
     });
     const content = completion.choices[0]?.message?.content;
     if (!content) throw new Error("Copy editor returned no content");
-    const copy = refineWebsiteCopyBody.shape.currentCopy.parse(JSON.parse(content));
+    const refined = z.object({ value: z.string().trim().min(1).max(1200) }).parse(JSON.parse(content));
+    const copy = refineWebsiteCopyBody.shape.currentCopy.parse({
+      ...body.currentCopy,
+      [body.selectedPart]: refined.value,
+    });
     const [updated] = await db.update(websiteProjectsTable).set({
       styleData: { ...project.styleData, copy },
       status: "draft_ready",
