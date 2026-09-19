@@ -421,11 +421,14 @@ Every copy field and section must include provenance. sourceFields must name onl
       throw new Error("Website generator did not produce the required visitor journey");
     }
 
+    // A customer can add or correct their booking destination in the editor.
+    // It remains a hard approval/download requirement, but should not consume a
+    // draft or prevent them from seeing the first generated website.
     const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
       copy: generated.copy,
       copyProvenance: generated.copyProvenance,
       sections: completeSections,
-    });
+    }).filter((issue) => issue.code !== "invalid-destination");
     if (hasBlockingIssues(validationIssues)) {
       req.log.warn({ projectId, validationIssues }, "Generated website draft failed delivery checks");
       throw new Error("Website draft failed its factual or structural checks");
@@ -544,3 +547,4 @@ Respect the country's natural English. Avoid hype, AI clichés, em dashes and "n
 });
 
 export default router;
+
