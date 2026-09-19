@@ -155,6 +155,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProjectAsset" }
 
+  /website-projects/{projectId}/directions:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getWebsiteDirections
+      tags: [dfy]
+      responses:
+        "200":
+          description: Eligible complete-page directions for this customer's saved brief and assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebsiteDirectionAnalysis" }
+
   /website-projects/{projectId}/generate:
     parameters:
       - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -1202,6 +1215,31 @@ components:
         progressData: { type: array, items: { type: object, additionalProperties: true } }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    WebsiteDirection:
+      type: object
+      required: [id, name, description, visitorJob, visualGrammar, score, lengthMode, assetMode, scaleMode, warnings]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        visitorJob: { type: string }
+        visualGrammar: { type: string }
+        score: { type: number }
+        lengthMode: { type: string, enum: [compact, standard, expanded] }
+        assetMode: { type: string, enum: [image-light, image-led, image-rich] }
+        scaleMode: { type: string, enum: [solo, team, multi-location] }
+        warnings: { type: array, items: { type: string } }
+
+    WebsiteDirectionAnalysis:
+      type: object
+      required: [directions, globalBlocks]
+      properties:
+        directions:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/WebsiteDirection" }
+        globalBlocks: { type: array, items: { type: string } }
 
     CreateWebsiteProjectBody:
       type: object

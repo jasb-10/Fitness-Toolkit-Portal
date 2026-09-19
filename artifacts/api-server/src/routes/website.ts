@@ -3,10 +3,17 @@ import { db, businessProfilesTable, websiteProjectsTable, projectAssetsTable } f
 import { z } from "zod";
 import { eq, and, desc, lt, ne, sql } from "drizzle-orm";
 import { PRODUCT_CODES, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
+import {
+  analyseDirections,
+  hasBlockingIssues,
+  validateGeneratedDraft,
+  type GeneratedDraft,
+  type SiteBrief,
+} from "../lib/site-generator";
 
 const router: IRouter = Router();
 const MAX_GENERATIONS = 2;
-const MAX_REFINEMENTS = 10;
+const MAX_REFINEMENTS = 5;
 router.use(requireAuth, requireProductEntitlement(PRODUCT_CODES.website));
 const uuidParams = z.object({ projectId: z.string().uuid() });
 const updateBusinessProfileBody = z.object({
@@ -122,12 +129,35 @@ async function ownedProject(projectId: string, userId: string) {
   return project;
 }
 
+async function projectGeneratorContext(project: typeof websiteProjectsTable.$inferSelect, userId: string) {
+  const assets = await db.select({ id: projectAssetsTable.id, rightsStatus: projectAssetsTable.rightsStatus })
+    .from(projectAssetsTable)
+    .where(and(eq(projectAssetsTable.projectId, project.id), eq(projectAssetsTable.userId, userId)));
+  return {
+    brief: project.briefData as SiteBrief,
+    assetCount: assets.length,
+    // Uploaded images are usable only when the customer has positively
+    // confirmed their right to publish them. Pending assets do not unlock an
+    // image-dependent composition.
+    usableImageCount: assets.filter((asset) => ["owned", "customer_owned", "licensed", "approved", "confirmed"].includes(asset.rightsStatus.toLowerCase())).length,
+  };
+}
+
 router.get("/website-projects/:projectId", async (req, res: Response) => {
   const { userId } = req as unknown as AuthedRequest;
   const { projectId } = uuidParams.parse(req.params);
   const project = await ownedProject(projectId, userId);
   if (!project) return res.status(404).json({ error: "Website project not found" });
   return res.json(serializeProject(project));
+});
+
+router.get("/website-projects/:projectId/directions", async (req, res: Response) => {
+  const { userId } = req as unknown as AuthedRequest;
+  const { projectId } = uuidParams.parse(req.params);
+  const project = await ownedProject(projectId, userId);
+  if (!project) return res.status(404).json({ error: "Website project not found" });
+  const analysis = analyseDirections(await projectGeneratorContext(project, userId));
+  return res.json(analysis);
 });
 
 router.patch("/website-projects/:projectId", async (req, res: Response) => {
@@ -152,14 +182,24 @@ router.patch("/website-projects/:projectId", async (req, res: Response) => {
     if (!style.copy || !Array.isArray(sections) || sections.length === 0) {
       return res.status(422).json({ error: "A generated website draft is required before approval" });
     }
-    const heroImage = style.heroImage;
-    if (typeof heroImage !== "string" || !heroImage.startsWith("/api/storage/objects/")) {
-      return res.status(422).json({ error: "Upload a photo you own or may use before approval" });
+    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
+      copy: style.copy,
+      copyProvenance: style.copyProvenance,
+      sections,
+    } as GeneratedDraft);
+    if (hasBlockingIssues(validationIssues)) {
+      return res.status(422).json({ error: "Resolve the website checks before approval", validationIssues });
     }
-    const objectPath = heroImage.slice("/api/storage".length);
-    const [asset] = await db.select({ id: projectAssetsTable.id }).from(projectAssetsTable)
-      .where(and(eq(projectAssetsTable.projectId, projectId), eq(projectAssetsTable.userId, userId), eq(projectAssetsTable.objectPath, objectPath))).limit(1);
-    if (!asset) return res.status(422).json({ error: "The selected photo is not in this project" });
+    if (style.assetMode !== "image-light") {
+      const heroImage = style.heroImage;
+      if (typeof heroImage !== "string" || !heroImage.startsWith("/api/storage/objects/")) {
+        return res.status(422).json({ error: "Upload a photo you own or may use before approval" });
+      }
+      const objectPath = heroImage.slice("/api/storage".length);
+      const [asset] = await db.select({ id: projectAssetsTable.id }).from(projectAssetsTable)
+        .where(and(eq(projectAssetsTable.projectId, projectId), eq(projectAssetsTable.userId, userId), eq(projectAssetsTable.objectPath, objectPath))).limit(1);
+      if (!asset) return res.status(422).json({ error: "The selected photo is not in this project" });
+    }
   }
   const [updated] = await db.update(websiteProjectsTable).set({ ...body, updatedAt: new Date() })
     .where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), ne(websiteProjectsTable.status, "generating"))).returning();
@@ -185,6 +225,17 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
   const project = await ownedProject(projectId, userId);
   if (!project) return res.status(404).json({ error: "Website project not found" });
 
+  const generatorContext = await projectGeneratorContext(project, userId);
+  const analysis = analyseDirections(generatorContext);
+  if (analysis.globalBlocks.length) {
+    return res.status(422).json({ error: "Complete the required website details first", missing: analysis.globalBlocks });
+  }
+  if (!analysis.directions.length) {
+    return res.status(422).json({ error: "The current brief does not yet support a complete website direction. Add more service detail or choose a different main action." });
+  }
+  const requestedComposition = typeof project.styleData.compositionId === "string" ? project.styleData.compositionId : "";
+  const selectedDirection = analysis.directions.find((item) => item.id === requestedComposition) || analysis.directions[0];
+
   const startedAt = new Date();
   const [reserved] = await db.update(websiteProjectsTable).set({
     generationAttempts: sql`${websiteProjectsTable.generationAttempts} + 1`,
@@ -201,7 +252,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
-      max_completion_tokens: 4500,
+      max_completion_tokens: 2800,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -210,7 +261,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
           schema: {
             type: "object",
             additionalProperties: false,
-            required: ["copy", "sections"],
+            required: ["copy", "copyProvenance", "sections"],
             properties: {
               copy: {
                 type: "object",
@@ -223,12 +274,23 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
                   button: { type: "string" },
                 },
               },
+              copyProvenance: {
+                type: "object",
+                additionalProperties: false,
+                required: ["headline", "subheadline", "about", "button"],
+                properties: {
+                  headline: { $ref: "#/$defs/provenance" },
+                  subheadline: { $ref: "#/$defs/provenance" },
+                  about: { $ref: "#/$defs/provenance" },
+                  button: { $ref: "#/$defs/provenance" },
+                },
+              },
               sections: {
                 type: "array",
                 items: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["id", "eyebrow", "title", "body", "layout", "highlights"],
+                  required: ["id", "eyebrow", "title", "body", "layout", "highlights", "provenance"],
                   properties: {
                     id: { type: "string", enum: ["services", "approach", "about", "results", "testimonial", "faq", "contact"] },
                     eyebrow: { type: "string" },
@@ -236,7 +298,21 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
                     body: { type: "string" },
                     layout: { type: "string", enum: ["editorial", "split", "statement"] },
                     highlights: { type: "array", items: { type: "string" } },
+                    provenance: { $ref: "#/$defs/provenance" },
                   },
+                },
+              },
+            },
+            $defs: {
+              provenance: {
+                type: "object",
+                additionalProperties: false,
+                required: ["sourceFields", "claimType", "verified", "exact"],
+                properties: {
+                  sourceFields: { type: "array", items: { type: "string" } },
+                  claimType: { type: "string", enum: ["offer", "audience", "location", "credential", "result", "testimonial", "price", "date", "capacity", "general"] },
+                  verified: { type: "boolean" },
+                  exact: { type: "boolean" },
                 },
               },
             },
@@ -251,10 +327,12 @@ First infer the visitor's immediate question, the business's real differentiator
 Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, client numbers, availability, or locations. Never imply a claim is proven when it is only an aspiration.
 Transform rough notes into polished, specific visitor-facing copy. Do not simply paste an intake answer as a section paragraph. If a supplied phrase is already strong, you may retain it; exact testimonials and their attribution must be preserved verbatim.
 Make the hero immediately explain what is offered, for whom, and why it is relevant. Avoid vague headlines such as "Unlock your potential", generic motivation, AI clichés, em dashes, and the construction "not X, but Y". Use natural English appropriate to the customer's country when identifiable; otherwise use British English.
+The application has selected a complete-page composition and content length. Respect its visitor job and visual grammar. These control the narrative emphasis, not factual content. A compact result must feel intentionally complete rather than shortened.
 Create only the IDs selected in websiteBrief.sections, each at most once. Return useful services, approach, about and contact sections when selected. Return results only when genuine results or credentials are supplied, testimonial only when a real quote is supplied, and FAQ only when a real question and answer are supplied. Do not create filler to compensate for missing evidence.
 For each section, choose an eyebrow of 2–5 words and a layout: editorial for calm explanatory copy, split for a practical offer or process, statement for one strong point. Vary layouts purposefully rather than repeating one. Write one clear title and a substantive body suited to the section, typically 35–80 words except for exact quotes or brief contact copy.
 For services and approach, add up to three concise highlights only when the brief contains distinct real service features or actual process steps. A highlight is a specific visitor-facing phrase, not a generic benefit or invented promise. Use an empty highlights array for other sections or when the evidence is insufficient.
-For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination. Return JSON only.`,
+For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination.
+Every copy field and section must include provenance. sourceFields must name only keys that actually contributed factual information. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
         },
         {
           role: "user",
@@ -270,6 +348,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
             } : null,
             websiteBrief: project.briefData,
             selectedStyle: project.styleData,
+            generationPlan: selectedDirection,
           }),
         },
       ],
@@ -277,6 +356,12 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
 
     const content = completion.choices[0]?.message?.content;
     if (!content) throw new Error("Website generator returned no content");
+    const provenance = z.object({
+      sourceFields: z.array(z.string()),
+      claimType: z.enum(["offer", "audience", "location", "credential", "result", "testimonial", "price", "date", "capacity", "general"]),
+      verified: z.boolean(),
+      exact: z.boolean(),
+    });
     const generated = z.object({
       copy: z.object({
         headline: z.string().min(1),
@@ -284,6 +369,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
         about: z.string().min(1),
         button: z.string().min(1),
       }),
+      copyProvenance: z.record(provenance),
       sections: z.array(z.object({
         id: z.string(),
         eyebrow: z.string(),
@@ -291,6 +377,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
         body: z.string(),
         layout: z.enum(["editorial", "split", "statement"]),
         highlights: z.array(z.string()).max(3),
+        provenance,
       })),
     }).parse(JSON.parse(content));
 
@@ -313,11 +400,30 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied 
       throw new Error("Website generator did not produce the required visitor journey");
     }
 
+    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
+      copy: generated.copy,
+      copyProvenance: generated.copyProvenance,
+      sections: completeSections,
+    });
+    if (hasBlockingIssues(validationIssues)) {
+      req.log.warn({ projectId, validationIssues }, "Generated website draft failed delivery checks");
+      throw new Error("Website draft failed its factual or structural checks");
+    }
+
     const completedAt = new Date();
     const [updated] = await db.update(websiteProjectsTable).set({
       status: "draft_ready",
       currentStage: "editor",
-      styleData: { ...project.styleData, copy: generated.copy },
+      styleData: {
+        ...project.styleData,
+        compositionId: selectedDirection.id,
+        lengthMode: selectedDirection.lengthMode,
+        assetMode: selectedDirection.assetMode,
+        scaleMode: selectedDirection.scaleMode,
+        copy: generated.copy,
+        copyProvenance: generated.copyProvenance,
+        validationIssues,
+      },
       sections: completeSections,
       progressData: [{
         step: "generation",
