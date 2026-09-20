@@ -1,4 +1,4 @@
-import { compositions } from "./catalog";
+import { compositions } from "./catalog.js";
 import type {
   AssetMode,
   ConversionRoute,
@@ -7,7 +7,7 @@ import type {
   LengthMode,
   ScaleMode,
   SiteBrief,
-} from "./types";
+} from "./types.js";
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 
@@ -74,7 +74,8 @@ export function analyseDirections(context: GeneratorContext): {
 
   const ranked = compositions.flatMap((definition, index) => {
     const unmet = unmetRequirements(context, index);
-    if (unmet.length || !definition.supportedRoutes.includes(route) || !definition.supportedAssets.includes(assets)) return [];
+    const explicitlyAvoided = definition.avoidedFor?.some((pattern) => pattern.test(haystack));
+    if (unmet.length || explicitlyAvoided || !definition.supportedRoutes.includes(route) || !definition.supportedAssets.includes(assets)) return [];
     let score = 20;
     score += definition.preferredFor.reduce((total, pattern) => total + (pattern.test(haystack) ? 18 : 0), 0);
     score += definition.recommendedFields.reduce((total, field) => total + (text(brief[field]) ? 2 : 0), 0);
@@ -106,4 +107,3 @@ export function analyseDirections(context: GeneratorContext): {
   // knowingly unsuitable design.
   return { directions: ranked.slice(0, 3), globalBlocks };
 }
-

@@ -1,5 +1,10 @@
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
-import { cn } from "@/lib/utils";
+import type { SitePlanV1 } from "@workspace/site-plan";
+import { buildDigitalMomentumHtml, DigitalMomentumSite } from "./DigitalMomentumSite.js";
+import { buildDocumentaryPerformanceHtml, DocumentaryPerformanceSite } from "./DocumentaryPerformanceSite.js";
+import { buildPrecisionPracticeHtml, PrecisionPracticeSite } from "./PrecisionPracticeSite.js";
+
+const cn = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(" ");
 
 type Copy = { headline: string; subheadline: string; about: string; button: string };
 type Section = { id: string; eyebrow?: string; title: string; body: string; highlights?: string[] };
@@ -9,17 +14,56 @@ type Brief = {
   process: string; prices?: string; faqQuestion: string; faqAnswer: string; schedule?: string;
   programmeStart?: string; programmeCapacity?: string; primaryProblem?: string; desiredOutcome?: string;
   serviceDetails?: string; objections?: string; differentiator?: string;
+  sections?: string[];
 };
 type Part = "headline" | "subheadline" | "about" | "button";
 type Props = {
   compositionId: string; brief: Brief; copy: Copy; sections: Section[]; heroImage: string; useImage: boolean;
   accent: string; narrow: boolean; editable?: boolean; selectedPart?: string; onSelect?: (part: Part) => void;
-  onReplaceImage?: () => void;
+  onReplaceImage?: () => void; sitePlan?: SitePlanV1; fontStyle?: string; paletteDark?: string; paletteLight?: string;
+  previewMode?: "desktop" | "tablet" | "mobile";
 };
 
 const splitItems = (value = "") => value.split(/\n|;|\u2022/).map((item) => item.trim()).filter(Boolean).slice(0, 5);
 const sectionOf = (sections: Section[], id: string) => sections.find((item) => item.id === id);
 const cleanQuote = (value: string) => value.trim().replace(/^[“"']+|[”"']+$/g, "");
+
+function resolveEditorialSite(props: Props) {
+  const services = sectionOf(props.sections, "services");
+  const approach = sectionOf(props.sections, "approach");
+  const about = sectionOf(props.sections, "about");
+  const results = sectionOf(props.sections, "results");
+  const testimonial = sectionOf(props.sections, "testimonial");
+  const faq = sectionOf(props.sections, "faq");
+  const contact = sectionOf(props.sections, "contact");
+  const schedule = splitItems(props.brief.schedule);
+  const planOrder = props.sitePlan?.narrative.orderedModuleIds || [];
+  const selected = new Set(props.brief.sections || []);
+  const available = [
+    services && selected.has("services") ? "services" : "",
+    approach && selected.has("approach") ? "approach" : "",
+    about && selected.has("about") ? "about" : "",
+    schedule.length && selected.has("schedule") ? "schedule" : "",
+    (results || props.brief.credentials || props.brief.results) && selected.has("results") ? "results" : "",
+    (testimonial || props.brief.testimonialQuote) && selected.has("testimonial") ? "testimonial" : "",
+    (faq || (props.brief.faqQuestion && props.brief.faqAnswer)) && selected.has("faq") ? "faq" : "",
+    selected.has("contact") ? "contact" : "",
+  ].filter(Boolean);
+  const ordered = [...new Set([...planOrder, ...available])].filter((id) => available.includes(id));
+  const contactIndex = ordered.indexOf("contact");
+  if (contactIndex >= 0) ordered.push(...ordered.splice(contactIndex, 1));
+  const heroVariant = props.sitePlan?.hero.variant || (props.useImage ? "split" : "typographic");
+  const headlineFit = props.sitePlan?.responsive.headlineFit || (props.copy.headline.length > 72 ? "compact" : props.copy.headline.length > 42 ? "balanced" : "display");
+  const displayFont = props.fontStyle === "Clean professional" ? "Arial, Helvetica, sans-serif" : props.fontStyle === "Strong & modern" ? '"Arial Black", Arial, sans-serif' : '"Iowan Old Style", Baskerville, "Palatino Linotype", Georgia, serif';
+  const ink = props.paletteDark || "#18231f";
+  const paper = props.paletteLight || "#f5f2ea";
+  const proofFacts = [...new Set([results?.body, props.brief.credentials, props.brief.results].filter((value): value is string => Boolean(value)))];
+  const images = props.useImage ? [...new Set([props.heroImage, ...(props.sitePlan?.assets?.images.map((asset) => asset.url) || [])].filter(Boolean))] : [];
+  const heroImage = images[0] || "";
+  const storyImage = images[1] || heroImage;
+  const galleryImages = images.slice(1, 4);
+  return { services, approach, about, results, testimonial, faq, contact, schedule, ordered, heroVariant, headlineFit, displayFont, ink, paper, proofFacts, heroImage, storyImage, galleryImages };
+}
 
 function Editable({ part, props, className, children }: { part: Part; props: Props; className?: string; children: React.ReactNode }) {
   const active = props.editable && props.selectedPart === part;
@@ -38,20 +82,29 @@ function Evidence({ props, dark = false }: { props: Props; dark?: boolean }) {
 }
 
 function EditorialStudio(props: Props) {
-  const services = sectionOf(props.sections, "services");
-  const about = sectionOf(props.sections, "about");
-  const schedule = splitItems(props.brief.schedule);
-  return <div className="overflow-hidden bg-[#f2eee6] text-[#20211e]" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-    <header className="flex items-center justify-between border-b border-black/15 px-8 py-5"><b className="text-sm tracking-[.15em]">{props.brief.businessName || "THE STUDIO"}</b>{!props.narrow && <div className="flex gap-7 text-[10px] uppercase tracking-[.15em]"><span>Practice</span><span>Classes</span><span>Visit</span></div>}</header>
-    <section className={cn("grid min-h-[680px]", props.narrow ? "grid-cols-1" : "grid-cols-[.9fr_1.1fr]")}>
-      <div className="flex flex-col justify-between p-8 md:p-14"><div className="text-[10px] uppercase tracking-[.24em] text-[#7b6658]">{props.brief.mainService}</div><div className="my-16"><Editable part="headline" props={props}><h1 className={cn("font-normal leading-[.92] tracking-[-.055em]", props.narrow ? "text-6xl" : "text-8xl")}>{props.copy.headline}</h1></Editable><Editable part="subheadline" props={props} className="mt-7 max-w-lg text-lg leading-8 text-black/60">{props.copy.subheadline}</Editable><div className="mt-9"><PrimaryAction props={props} dark /></div></div><div className="flex items-center gap-2 text-xs text-black/50"><MapPin className="h-4 w-4" />{props.brief.location || props.brief.deliveryMode}</div></div>
-      <button disabled={!props.editable} onClick={props.onReplaceImage} className="relative min-h-[520px] overflow-hidden bg-[#c9c2b5]"><>{props.useImage && <img src={props.heroImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}</><div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" /><span className="absolute bottom-6 left-6 bg-[#f2eee6] px-4 py-2 text-[10px] tracking-[.18em]">{props.brief.audience}</span></button>
-    </section>
-    {services && <section className="border-y border-black/15 bg-[#e3dace] p-8 md:p-14"><div className={cn("grid gap-12", props.narrow ? "grid-cols-1" : "grid-cols-[.7fr_1.3fr]")}><div><span className="text-[10px] uppercase tracking-[.2em]">{services.eyebrow}</span><h2 className="mt-5 text-5xl font-normal leading-none">{services.title}</h2></div><div><p className="max-w-2xl text-lg leading-8 text-black/65">{services.body}</p><div className="mt-8 grid gap-3">{services.highlights?.map((item, index) => <div key={item} className="flex gap-5 border-t border-black/20 py-4"><span className="text-xs">0{index + 1}</span><b className="font-normal">{item}</b></div>)}</div></div></div></section>}
-    {schedule.length > 0 && <section className="bg-[#212722] px-8 py-16 text-white md:px-14"><div className="flex items-end justify-between"><div><span className="text-[10px] uppercase tracking-[.2em] text-white/50">Current sessions</span><h2 className="mt-4 text-5xl font-normal">Find your time.</h2></div><CalendarDays className="h-8 w-8 text-white/40" /></div><div className="mt-10 divide-y divide-white/15">{schedule.map((item, index) => <div key={item} className="grid grid-cols-[45px_1fr_auto] items-center py-5 text-sm"><span className="text-white/40">0{index + 1}</span><span>{item}</span><span>Explore →</span></div>)}</div></section>}
-    {(about || props.copy.about) && <section className="bg-[#f8f6f1] px-8 py-20 md:px-14"><div className="mx-auto max-w-4xl text-center"><span className="text-[10px] uppercase tracking-[.22em] text-[#7b6658]">{about?.eyebrow || "The practice"}</span><Editable part="about" props={props} className="mt-7 text-center text-3xl leading-[1.35]">{about?.body || props.copy.about}</Editable></div></section>}
-    <Closing props={props} background="#b8a48f" foreground="#171715" />
-  </div>;
+  const { services, approach, about, results, testimonial, faq, contact, schedule, ordered, heroVariant, headlineFit, displayFont, ink, paper, proofFacts, heroImage, storyImage, galleryImages } = resolveEditorialSite(props);
+  const compact = props.previewMode === "tablet" || props.previewMode === "mobile";
+  const mobile = props.previewMode === "mobile" || props.narrow;
+  const vars = { "--editorial-ink": ink, "--editorial-paper": paper, "--editorial-accent": props.accent, "--editorial-display": displayFont } as React.CSSProperties;
+  const titleSize = mobile ? headlineFit === "compact" ? "text-[2.8rem]" : headlineFit === "balanced" ? "text-[3.35rem]" : "text-[4rem]" : headlineFit === "compact" ? "text-[4.4rem]" : headlineFit === "balanced" ? "text-[5.5rem]" : "text-[7.2rem]";
+  const sectionTitle = cn("editorial-display font-normal leading-[.94] tracking-[-.055em]", mobile ? "text-[2.7rem]" : compact ? "text-[3.5rem]" : "text-[4.7rem]");
+
+  const heroCopy = <div className={cn("relative z-10 flex flex-col justify-between", mobile ? "min-h-[610px] p-7" : compact ? "min-h-[620px] p-10" : "min-h-[720px] p-14")}><div className="flex items-center gap-4 text-[9px] font-bold uppercase tracking-[.24em]"><span className="h-px w-9 bg-current" />{props.brief.mainService}</div><div className="my-14 max-w-[860px]"><Editable part="headline" props={props}><h1 className={cn("editorial-display font-normal leading-[.88] tracking-[-.07em]", titleSize)}>{props.copy.headline}</h1></Editable><Editable part="subheadline" props={props} className={cn("mt-7 max-w-xl leading-7 opacity-70", mobile ? "text-base" : "text-lg")}>{props.copy.subheadline}</Editable><div className="mt-9"><PrimaryAction props={props} dark={heroVariant !== "immersive"} /></div></div><div className="flex flex-wrap items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-[.16em] opacity-65"><span className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" />{props.brief.location || props.brief.deliveryMode}</span><span>{props.brief.audience}</span></div></div>;
+
+  const module = (id: string, index: number) => {
+    const count = String(index + 1).padStart(2, "0");
+    if (id === "services" && services) return <section key={id} className={cn("border-t border-black/15", mobile ? "px-7 py-16" : "px-14 py-24")} style={{ background: `color-mix(in srgb, ${paper} 84%, ${props.accent})` }}><div className="flex justify-between border-t border-black/30 pt-3 text-[9px] font-bold uppercase tracking-[.2em]"><span>{services.eyebrow || "Ways to move"}</span><span>{count}</span></div><div className={cn("mt-14 grid gap-12", compact ? "grid-cols-1" : "grid-cols-[.75fr_1.25fr]")}><h2 className={sectionTitle}>{services.title}</h2><div><p className="max-w-2xl text-base leading-8 opacity-70">{services.body}</p>{services.highlights?.length ? <div className={cn("mt-9 grid gap-3", compact ? "grid-cols-1" : "grid-cols-3")}>{services.highlights.map((item, itemIndex) => <article key={item} className="flex min-h-56 flex-col justify-between border border-black/20 p-6"><span className="text-[10px] opacity-50">0{itemIndex + 1}</span><h3 className="editorial-display text-2xl font-normal leading-tight">{item}</h3></article>)}</div> : null}</div></div>{galleryImages.length > 1 && <div className={cn("mt-12 grid gap-3", mobile ? "grid-cols-1" : "grid-cols-2")}>{galleryImages.slice(0, 2).map((image) => <img key={image} src={image} alt="" className="h-72 w-full object-cover" />)}</div>}</section>;
+    if (id === "approach" && approach) return <section key={id} className={cn("border-t border-black/15", mobile ? "px-7 py-16" : "px-14 py-24")} style={{ background: paper }}><div className={cn("grid gap-12", compact ? "grid-cols-1" : "grid-cols-[.65fr_1.35fr]")}><div><span className="text-[9px] font-bold uppercase tracking-[.2em] opacity-55">{approach.eyebrow || "Your first steps"} / {count}</span><h2 className={cn(sectionTitle, "mt-6")}>{approach.title}</h2></div><div><p className="max-w-2xl text-lg leading-8 opacity-65">{approach.body}</p><ol className="mt-8 divide-y divide-black/20 border-y border-black/20">{(approach.highlights?.length ? approach.highlights : splitItems(props.brief.process)).map((item, itemIndex) => <li key={item} className="grid grid-cols-[48px_1fr] py-5"><span className="text-xs opacity-45">0{itemIndex + 1}</span><span className="editorial-display text-xl">{item}</span></li>)}</ol></div></div></section>;
+    if (id === "about" && about) return <section key={id} className={cn("grid", compact ? "grid-cols-1" : "grid-cols-[1fr_1fr]")} style={{ background: ink, color: paper }}><div className={cn("relative overflow-hidden", mobile ? "min-h-[300px]" : "min-h-[560px]")} style={{ background: `color-mix(in srgb, ${ink} 76%, ${props.accent})` }}>{storyImage ? <img src={storyImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-75" /> : <div className="absolute inset-[12%] rounded-[50%] border border-current opacity-25 before:absolute before:inset-[18%] before:rounded-[50%] before:border before:border-current after:absolute after:inset-[36%] after:rounded-[50%] after:border after:border-current" />}</div><div className={cn("flex flex-col justify-between", mobile ? "p-7 py-16" : "p-14")}><div className="flex justify-between border-t border-white/30 pt-3 text-[9px] font-bold uppercase tracking-[.2em] opacity-65"><span>{about.eyebrow || "The studio story"}</span><span>{count}</span></div><div className="my-16"><h2 className={sectionTitle}>{about.title}</h2><Editable part="about" props={props} className="mt-7 max-w-xl text-lg leading-8 opacity-70">{props.copy.about || about.body}</Editable></div></div></section>;
+    if (id === "schedule") return <section key={id} className={cn(mobile ? "px-7 py-16" : "px-14 py-24")} style={{ background: `color-mix(in srgb, ${paper} 92%, ${ink})` }}><div className="flex items-end justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.2em] opacity-55">Plan your week / {count}</span><h2 className={cn(sectionTitle, "mt-5")}>Find your next session.</h2></div><CalendarDays className="h-8 w-8 opacity-35" /></div><div className="mt-10 divide-y divide-black/20 border-y border-black/20">{schedule.map((item, itemIndex) => <div key={item} className={cn("grid items-center gap-4 py-5", mobile ? "grid-cols-[38px_1fr]" : "grid-cols-[60px_1fr_auto]")}><span className="text-xs opacity-40">0{itemIndex + 1}</span><span className="editorial-display text-xl">{item}</span>{!mobile && <span className="text-[10px] font-bold uppercase tracking-[.14em]">Enquire ↗</span>}</div>)}</div></section>;
+    if (id === "results") return <section key={id} className={cn(mobile ? "px-7 py-16" : "px-14 py-20")} style={{ background: ink, color: paper }}><div className="flex justify-between text-[9px] font-bold uppercase tracking-[.2em] opacity-55"><span>{results?.eyebrow || "The evidence"}</span><span>{count}</span></div><h2 className={cn(sectionTitle, "mt-6 max-w-4xl")}>{results?.title || "Experience, made visible."}</h2><div className={cn("mt-10 grid gap-px", compact || proofFacts.length === 1 ? "grid-cols-1" : "grid-cols-2")} style={{ background: `color-mix(in srgb, ${paper} 20%, transparent)` }}>{proofFacts.slice(0, 2).map((fact, itemIndex) => <div key={fact} className="p-7" style={{ background: ink }}><span className="text-[10px] opacity-40">0{itemIndex + 1}</span><p className="mt-8 text-lg leading-8 opacity-75">{fact}</p></div>)}</div></section>;
+    if (id === "testimonial") return <section key={id} className={cn("text-center", mobile ? "px-7 py-20" : "px-14 py-28")} style={{ background: paper }}><span className="text-[9px] font-bold uppercase tracking-[.2em] opacity-50">Client words / {count}</span><blockquote className={cn("editorial-display mx-auto mt-8 max-w-5xl font-normal leading-[1.15]", mobile ? "text-[2rem]" : "text-[3.5rem]")}>“{cleanQuote(props.brief.testimonialQuote || testimonial?.body || "") }”</blockquote>{props.brief.testimonialName && <cite className="mt-7 block text-[10px] not-italic uppercase tracking-[.18em] opacity-55">{props.brief.testimonialName}</cite>}</section>;
+    if (id === "faq") return <section key={id} className={cn(mobile ? "px-7 py-16" : "px-14 py-24")} style={{ background: paper }}><div className={cn("grid gap-12", compact ? "grid-cols-1" : "grid-cols-[.8fr_1.2fr]")}><div><span className="text-[9px] font-bold uppercase tracking-[.2em] opacity-50">Good to know / {count}</span><h2 className={cn(sectionTitle, "mt-6")}>{faq?.title || "Before you begin."}</h2></div><details open className="border-y border-black/20 py-6"><summary className="editorial-display flex cursor-pointer list-none justify-between gap-4 text-xl"><span>{props.brief.faqQuestion || faq?.eyebrow}</span><span>+</span></summary><p className="mt-5 max-w-xl text-sm leading-7 opacity-65">{props.brief.faqAnswer || faq?.body}</p></details></div></section>;
+    if (id === "contact") return <section key={id} className={cn("min-h-[520px] flex items-center", mobile ? "px-7 py-20" : "px-14 py-28")} style={{ background: props.accent, color: ink }}><div className="max-w-5xl"><span className="text-[9px] font-bold uppercase tracking-[.2em] opacity-60">{contact?.eyebrow || "Your next move"} / {count}</span><h2 className={cn("editorial-display mt-6 font-normal leading-[.88] tracking-[-.065em]", mobile ? "text-[3.8rem]" : "text-[7rem]")}>{contact?.title || "Start where you are."}</h2><p className="mt-7 max-w-xl text-lg leading-8 opacity-70">{contact?.body || props.copy.subheadline}</p><div className="mt-9"><PrimaryAction props={props} dark /></div></div></section>;
+    return null;
+  };
+
+  return <div className="editorial-preview overflow-hidden" style={{ ...vars, background: paper, color: ink, fontFamily: "Arial, Helvetica, sans-serif" }}><style>{`.editorial-preview .editorial-display{font-family:var(--editorial-display)}.editorial-preview button{font-family:inherit}`}</style><header className={cn("flex items-center justify-between border-b border-black/15", mobile ? "px-6 py-4" : "px-10 py-6")}><div className="flex items-center gap-3"><span className="editorial-display grid h-9 w-9 place-items-center rounded-full border border-current text-lg">{(props.brief.businessName || "S").charAt(0)}</span><b className="text-[11px] uppercase tracking-[.18em]">{props.brief.businessName || "The Studio"}</b></div>{!mobile && <nav className="flex gap-7 text-[9px] font-bold uppercase tracking-[.16em]">{ordered.includes("services") && <span>Practice</span>}{ordered.includes("schedule") && <span>Sessions</span>}{ordered.includes("about") && <span>About</span>}</nav>}</header>{heroVariant === "immersive" && heroImage ? <section className="relative min-h-[720px] overflow-hidden text-white"><img src={heroImage} alt="" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />{heroCopy}</section> : <section className={cn("grid", heroVariant === "typographic" || mobile ? "grid-cols-1" : compact ? "grid-cols-[1.05fr_.95fr]" : "grid-cols-[.9fr_1.1fr]")}><div style={{ background: paper }}>{heroCopy}</div>{heroVariant !== "typographic" && <button disabled={!props.editable} onClick={props.onReplaceImage} className="relative min-h-[520px] overflow-hidden text-left" style={{ background: `color-mix(in srgb, ${paper} 75%, ${props.accent})` }}>{heroImage ? <img src={heroImage} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-[12%] rounded-[50%] border border-current opacity-40 before:absolute before:inset-[17%] before:rounded-[50%] before:border before:border-current after:absolute after:inset-[34%] after:rounded-[50%] after:border after:border-current" />}<span className="absolute bottom-6 left-6 bg-white/85 px-4 py-2 text-[9px] font-bold uppercase tracking-[.17em] text-black">{props.brief.audience}</span></button>}</section>}{ordered.map(module)}<footer className="flex flex-wrap items-center justify-between gap-5 border-t border-white/20 px-7 py-9 text-[9px] uppercase tracking-[.16em]" style={{ background: ink, color: paper }}><b>{props.brief.businessName}</b><span>{props.brief.location || props.brief.deliveryMode}</span><span>{props.copy.button}</span></footer></div>;
 }
 
 function DigitalMomentum(props: Props) {
@@ -139,19 +192,58 @@ function Closing({ props, background, foreground }: { props: Props; background: 
 }
 
 export function CompositionSite(props: Props) {
-  switch (props.compositionId) {
-    case "editorial-studio": return <EditorialStudio {...props} />;
-    case "digital-momentum": return <DigitalMomentum {...props} />;
-    case "documentary-performance": return <DocumentaryPerformance {...props} />;
-    case "precision-practice": return <PrecisionPractice {...props} />;
-    case "community-schedule": return <CommunitySchedule {...props} />;
-    case "private-catalogue": return <PrivateCatalogue {...props} />;
-    case "campaign-launch": return <CampaignLaunch {...props} />;
-    default: return <DigitalMomentum {...props} />;
-  }
+  const Renderer = compositionRenderers[props.compositionId] || DigitalMomentum;
+  return <Renderer {...props} />;
 }
 
+// A family is registered here once; the builder can then select it without changing
+// the project lifecycle or editor. This is deliberately open-ended rather than an
+// eight-family enum so later families can be added without a portal rewrite.
+export const compositionRenderers: Record<string, (props: Props) => React.ReactNode> = {
+  "editorial-studio": EditorialStudio,
+  "digital-momentum": DigitalMomentumSite,
+  "documentary-performance": DocumentaryPerformanceSite,
+  "precision-practice": PrecisionPracticeSite,
+  "community-schedule": CommunitySchedule,
+  "private-catalogue": PrivateCatalogue,
+  "campaign-launch": CampaignLaunch,
+};
+
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[char] || char);
+
+function buildEditorialStudioHtml(props: Props, bookingUrl: string, locale: string) {
+  const h = escapeHtml;
+  const resolved = resolveEditorialSite(props);
+  const { services, approach, about, results, testimonial, faq, contact, schedule, ordered, heroVariant, headlineFit, displayFont, ink, paper, proofFacts, heroImage, storyImage, galleryImages } = resolved;
+  const image = (url: string) => url ? `<img src="${h(url)}" alt="" width="1600" height="1200">` : `<div class="orb" aria-hidden="true"></div>`;
+  const action = `<a class="action" href="${h(bookingUrl)}">${h(props.copy.button)} <span aria-hidden="true">→</span></a>`;
+  const sectionNumber = (index: number) => String(index + 1).padStart(2, "0");
+  const moduleHtml = (id: string, index: number) => {
+    const count = sectionNumber(index);
+    if (id === "services" && services) return `<section class="module services" id="services" data-module="services"><div class="rule-label"><span>${h(services.eyebrow || "Ways to move")}</span><span>${count}</span></div><div class="module-split"><h2>${h(services.title)}</h2><div><p class="body-copy">${h(services.body)}</p>${services.highlights?.length ? `<div class="service-cards">${services.highlights.map((item, itemIndex) => `<article><span>0${itemIndex + 1}</span><h3>${h(item)}</h3></article>`).join("")}</div>` : ""}</div></div>${galleryImages.length > 1 ? `<div class="image-ribbon">${galleryImages.slice(0, 2).map((url) => image(url)).join("")}</div>` : ""}</section>`;
+    if (id === "approach" && approach) {
+      const steps = approach.highlights?.length ? approach.highlights : splitItems(props.brief.process);
+      return `<section class="module approach" id="approach" data-module="approach"><div><div class="eyebrow">${h(approach.eyebrow || "Your first steps")} / ${count}</div><h2>${h(approach.title)}</h2></div><div><p class="body-copy large">${h(approach.body)}</p><ol>${steps.map((item, itemIndex) => `<li><span>0${itemIndex + 1}</span><strong>${h(item)}</strong></li>`).join("")}</ol></div></section>`;
+    }
+    if (id === "about" && about) return `<section class="about" id="about" data-module="about"><div class="about-art">${image(storyImage)}</div><div class="about-copy"><div class="rule-label"><span>${h(about.eyebrow || "The studio story")}</span><span>${count}</span></div><div><h2>${h(about.title)}</h2><p class="body-copy large">${h(props.copy.about || about.body)}</p></div></div></section>`;
+    if (id === "schedule") return `<section class="module schedule" id="schedule" data-module="schedule"><div class="schedule-title"><div><div class="eyebrow">Plan your week / ${count}</div><h2>Find your next session.</h2></div><span class="calendar" aria-hidden="true">▦</span></div><div class="schedule-list">${schedule.map((item, itemIndex) => `<div><span>0${itemIndex + 1}</span><strong>${h(item)}</strong><a href="${h(bookingUrl)}">Enquire ↗</a></div>`).join("")}</div></section>`;
+    if (id === "results") return `<section class="module results" id="results" data-module="results"><div class="rule-label"><span>${h(results?.eyebrow || "The evidence")}</span><span>${count}</span></div><h2>${h(results?.title || "Experience, made visible.")}</h2><div class="proof-grid">${proofFacts.slice(0, 2).map((fact, itemIndex) => `<article><span>0${itemIndex + 1}</span><p>${h(fact)}</p></article>`).join("")}</div></section>`;
+    if (id === "testimonial") return `<section class="module testimonial" id="testimonial" data-module="testimonial"><div class="eyebrow">Client words / ${count}</div><blockquote>“${h(cleanQuote(props.brief.testimonialQuote || testimonial?.body || ""))}”</blockquote>${props.brief.testimonialName ? `<cite>${h(props.brief.testimonialName)}</cite>` : ""}</section>`;
+    if (id === "faq") return `<section class="module faq" id="faq" data-module="faq"><div><div class="eyebrow">Good to know / ${count}</div><h2>${h(faq?.title || "Before you begin.")}</h2></div><details open><summary><span>${h(props.brief.faqQuestion || faq?.eyebrow || "")}</span><span aria-hidden="true">+</span></summary><p class="body-copy">${h(props.brief.faqAnswer || faq?.body || "")}</p></details></section>`;
+    if (id === "contact") return `<section class="contact" id="contact" data-module="contact"><div><div class="eyebrow">${h(contact?.eyebrow || "Your next move")} / ${count}</div><h2>${h(contact?.title || "Start where you are.")}</h2><p class="body-copy large">${h(contact?.body || props.copy.subheadline)}</p>${action}</div></section>`;
+    return "";
+  };
+  const heroCopy = `<div class="hero-copy"><div class="hero-service"><span></span>${h(props.brief.mainService)}</div><div class="hero-main"><h1>${h(props.copy.headline)}</h1><p>${h(props.copy.subheadline)}</p>${action}</div><div class="hero-meta"><span>${h(props.brief.location || props.brief.deliveryMode || "")}</span><span>${h(props.brief.audience)}</span></div></div>`;
+  const hero = heroVariant === "immersive" && heroImage
+    ? `<section class="hero immersive" data-hero="immersive">${image(heroImage)}<div class="shade"></div>${heroCopy}</section>`
+    : `<section class="hero ${heroVariant === "typographic" ? "typographic" : "split"}" data-hero="${h(heroVariant)}"><div class="hero-paper">${heroCopy}</div>${heroVariant !== "typographic" ? `<figure class="hero-art">${image(heroImage)}<figcaption>${h(props.brief.audience)}</figcaption></figure>` : ""}</section>`;
+  const schema = JSON.stringify({ "@context": "https://schema.org", "@type": "ProfessionalService", name: props.brief.businessName, description: props.copy.subheadline, areaServed: props.brief.location || undefined, url: bookingUrl.startsWith("http") ? bookingUrl : undefined }).replace(/</g, "\\u003c");
+  return `<!doctype html><html lang="${h(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${h(props.brief.businessName)} | ${h(props.brief.mainService)}</title><meta name="description" content="${h(props.copy.subheadline)}"><meta property="og:type" content="website"><meta property="og:title" content="${h(props.copy.headline)}"><meta property="og:description" content="${h(props.copy.subheadline)}"><meta name="theme-color" content="${h(paper)}"><script type="application/ld+json">${schema}</script><style>
+:root{--ink:${ink};--paper:${paper};--accent:${props.accent};--display:${displayFont};--gutter:clamp(1.75rem,4.2vw,3.5rem)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;overflow-x:hidden}a{color:inherit}a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:4px}h1,h2,h3,p{margin-top:0}h1,h2,h3,blockquote{font-family:var(--display);font-weight:400}header{display:flex;align-items:center;justify-content:space-between;padding:1rem 2.5rem;border-bottom:1px solid color-mix(in srgb,var(--ink),transparent 85%)}.brand{display:flex;align-items:center;gap:.8rem;font-size:.7rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}.mark{display:grid;width:2.25rem;height:2.25rem;place-items:center;border:1px solid;border-radius:50%;font:400 1.1rem var(--display)}nav{display:flex;gap:1.75rem;font-size:.58rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}nav a{text-decoration:none}.hero{position:relative}.hero.split{display:grid;grid-template-columns:.9fr 1.1fr}.hero-paper{background:var(--paper)}.hero-copy{position:relative;z-index:2;display:flex;min-height:720px;flex-direction:column;justify-content:space-between;padding:var(--gutter)}.hero-service{display:flex;align-items:center;gap:1rem;font-size:.56rem;font-weight:700;letter-spacing:.24em;text-transform:uppercase}.hero-service span{width:2.25rem;height:1px;background:currentColor}.hero-main{margin:3.5rem 0;max-width:54rem}h1{margin:0;font-size:${headlineFit === "compact" ? "4.4rem" : headlineFit === "balanced" ? "5.5rem" : "7.2rem"};line-height:.88;letter-spacing:-.07em}.hero-main p{max-width:36rem;margin:1.75rem 0 0;font-size:1.125rem;line-height:1.55;opacity:.7}.action{display:inline-flex;align-items:center;gap:.75rem;width:max-content;margin-top:2.25rem;padding:.9rem 1.25rem;background:#000;color:#fff;text-decoration:none;font-size:.85rem;font-weight:700}.hero-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem;font-size:.62rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.65}.hero-art{position:relative;min-height:520px;margin:0;overflow:hidden;background:color-mix(in srgb,var(--paper) 75%,var(--accent))}.hero-art img,.immersive>img,.about-art>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.hero-art figcaption{position:absolute;bottom:1.5rem;left:1.5rem;padding:.55rem 1rem;background:#ffffffe0;color:#000;font-size:.56rem;font-weight:700;letter-spacing:.17em;text-transform:uppercase}.orb{position:absolute;inset:12%;border:1px solid currentColor;border-radius:50%;opacity:.35}.orb:before,.orb:after{content:"";position:absolute;border:1px solid currentColor;border-radius:50%}.orb:before{inset:17%}.orb:after{inset:34%}.immersive{min-height:720px;overflow:hidden;color:#fff}.immersive .shade{position:absolute;inset:0;background:linear-gradient(90deg,#000b,#0005,transparent)}.immersive .hero-copy{width:min(100%,64rem)}.immersive .action{background:#fff;color:#000}.module{padding:6rem var(--gutter);border-top:1px solid color-mix(in srgb,var(--ink),transparent 85%)}.rule-label{display:flex;justify-content:space-between;padding-top:.75rem;border-top:1px solid color-mix(in srgb,currentColor,transparent 70%);font-size:.56rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase}.eyebrow{font-size:.56rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;opacity:.55}h2{margin:1.5rem 0 0;font-size:4.7rem;line-height:.94;letter-spacing:-.055em}.body-copy{max-width:42rem;font-size:1rem;line-height:2;opacity:.7}.body-copy.large{font-size:1.125rem;line-height:1.75}.services{background:color-mix(in srgb,var(--paper) 84%,var(--accent))}.module-split{display:grid;grid-template-columns:.75fr 1.25fr;gap:3rem;margin-top:3.5rem}.service-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:2.25rem}.service-cards article{display:flex;min-height:14rem;flex-direction:column;justify-content:space-between;padding:1.5rem;border:1px solid color-mix(in srgb,var(--ink),transparent 80%)}.service-cards article>span,.proof-grid article>span{font-size:.62rem;opacity:.5}.service-cards h3{margin:0;font-size:1.5rem;line-height:1.15}.image-ribbon{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-top:3rem}.image-ribbon img{width:100%;height:18rem;object-fit:cover}.approach,.faq{display:grid;grid-template-columns:.65fr 1.35fr;gap:3rem}.approach ol{margin:2rem 0 0;padding:0;border-block:1px solid color-mix(in srgb,var(--ink),transparent 80%);list-style:none}.approach li{display:grid;grid-template-columns:3rem 1fr;padding:1.25rem 0;border-bottom:1px solid color-mix(in srgb,var(--ink),transparent 80%)}.approach li:last-child{border:0}.approach li span{font-size:.75rem;opacity:.45}.approach li strong{font:400 1.25rem var(--display)}.about{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);color:var(--paper)}.about-art{position:relative;min-height:560px;overflow:hidden;background:color-mix(in srgb,var(--ink) 76%,var(--accent))}.about-copy{display:flex;flex-direction:column;justify-content:space-between;padding:var(--gutter)}.about-copy>div:last-child{margin:4rem 0}.schedule{background:color-mix(in srgb,var(--paper) 92%,var(--ink))}.schedule-title{display:flex;align-items:end;justify-content:space-between}.calendar{font-size:2rem;opacity:.35}.schedule-list{margin-top:2.5rem;border-block:1px solid color-mix(in srgb,var(--ink),transparent 80%)}.schedule-list>div{display:grid;grid-template-columns:3.75rem 1fr auto;gap:1rem;padding:1.25rem 0;border-bottom:1px solid color-mix(in srgb,var(--ink),transparent 80%)}.schedule-list>div:last-child{border:0}.schedule-list span{font-size:.75rem;opacity:.4}.schedule-list strong{font:400 1.25rem var(--display)}.schedule-list a{font-size:.62rem;font-weight:700;letter-spacing:.14em;text-decoration:none;text-transform:uppercase}.results{background:var(--ink);color:var(--paper)}.results h2{max-width:56rem}.proof-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;margin-top:2.5rem;background:color-mix(in srgb,var(--paper) 20%,transparent)}.proof-grid article{padding:1.75rem;background:var(--ink)}.proof-grid p{margin:2rem 0 0;font-size:1.125rem;line-height:1.75;opacity:.75}.testimonial{text-align:center}.testimonial blockquote{max-width:64rem;margin:2rem auto 0;font-size:3.5rem;line-height:1.15}.testimonial cite{display:block;margin-top:1.75rem;font-size:.62rem;font-style:normal;letter-spacing:.18em;text-transform:uppercase;opacity:.55}.faq{grid-template-columns:.8fr 1.2fr}.faq details{padding:1.5rem 0;border-block:1px solid color-mix(in srgb,var(--ink),transparent 80%)}.faq summary{display:flex;justify-content:space-between;gap:1rem;font:400 1.25rem var(--display);cursor:pointer;list-style:none}.faq details p{margin-top:1.25rem}.contact{display:flex;min-height:520px;align-items:center;padding:7rem var(--gutter);background:var(--accent);color:var(--ink)}.contact>div{max-width:64rem}.contact h2{font-size:7rem;line-height:.88;letter-spacing:-.065em}.contact .body-copy{margin-top:1.75rem}footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1.25rem;padding:2.25rem 1.75rem;border-top:1px solid #ffffff33;background:var(--ink);color:var(--paper);font-size:.56rem;letter-spacing:.16em;text-transform:uppercase}
+@media(max-width:900px){.hero.split,.module-split,.approach,.about,.faq{grid-template-columns:1fr}.hero-copy{min-height:620px;padding:2.5rem}.service-cards{grid-template-columns:1fr}.about-art{min-height:420px}h1{font-size:${headlineFit === "compact" ? "3.4rem" : headlineFit === "balanced" ? "4.25rem" : "5rem"}}h2{font-size:3.5rem}}
+@media(max-width:600px){header{padding:1rem 1.5rem}nav{display:none}.hero-copy{min-height:610px;padding:1.75rem}.hero-main{margin:3.5rem 0}.hero-art{min-height:420px}h1{font-size:${headlineFit === "compact" ? "2.8rem" : headlineFit === "balanced" ? "3.35rem" : "4rem"}}.module{padding:4rem 1.75rem}h2{font-size:2.7rem}.image-ribbon{grid-template-columns:1fr}.about-art{min-height:300px}.about-copy{padding:4rem 1.75rem}.schedule-list>div{grid-template-columns:2.4rem 1fr}.schedule-list a{display:none}.proof-grid{grid-template-columns:1fr}.testimonial blockquote{font-size:2rem}.contact{padding:5rem 1.75rem}.contact h2{font-size:3.8rem}}
+</style></head><body><header><div class="brand"><span class="mark">${h((props.brief.businessName || "S").charAt(0))}</span><b>${h(props.brief.businessName || "The Studio")}</b></div><nav>${ordered.includes("services") ? '<a href="#services">Practice</a>' : ""}${ordered.includes("schedule") ? '<a href="#schedule">Sessions</a>' : ""}${ordered.includes("about") ? '<a href="#about">About</a>' : ""}</nav></header><main>${hero}${ordered.map(moduleHtml).join("")}</main><footer><b>${h(props.brief.businessName)}</b><span>${h(props.brief.location || props.brief.deliveryMode || "")}</span><span>${h(props.copy.button)}</span></footer></body></html>`;
+}
 
 const exportThemes: Record<string, { body: string; ink: string; paper: string; panel: string; signal: string; display: string; label: string }> = {
   "editorial-studio": { body: "editorial", ink: "#20211e", paper: "#f2eee6", panel: "#e3dace", signal: "#7b6658", display: 'Georgia,"Times New Roman",serif', label: "EDITORIAL STUDIO" },
@@ -163,7 +255,17 @@ const exportThemes: Record<string, { body: string; ink: string; paper: string; p
   "campaign-launch": { body: "campaign", ink: "#161616", paper: "#fff8e7", panel: "#ffd53d", signal: "#ff4937", display: "Arial,Helvetica,sans-serif", label: "CAMPAIGN LAUNCH" },
 };
 
-export function buildCompositionHtml({ compositionId, brief, copy, sections, heroImage, useImage, accent, bookingUrl, locale = "en-GB" }: Omit<Props, "narrow" | "editable" | "selectedPart" | "onSelect" | "onReplaceImage"> & { bookingUrl: string; locale?: string }) {
+const canonicalHtmlBuilders: Record<string, (props: Props, bookingUrl: string, locale: string) => string> = {
+  "editorial-studio": buildEditorialStudioHtml,
+  "digital-momentum": buildDigitalMomentumHtml,
+  "documentary-performance": buildDocumentaryPerformanceHtml,
+  "precision-practice": buildPrecisionPracticeHtml,
+};
+
+export function buildCompositionHtml({ compositionId, brief, copy, sections, heroImage, useImage, accent, bookingUrl, locale = "en-GB", sitePlan, fontStyle, paletteDark, paletteLight }: Omit<Props, "narrow" | "editable" | "selectedPart" | "onSelect" | "onReplaceImage"> & { bookingUrl: string; locale?: string }) {
+  const canonicalProps: Props = { compositionId, brief, copy, sections, heroImage, useImage, accent, narrow: false, sitePlan, fontStyle, paletteDark, paletteLight, previewMode: "desktop" };
+  const canonicalBuilder = canonicalHtmlBuilders[compositionId];
+  if (canonicalBuilder) return canonicalBuilder(canonicalProps, bookingUrl, locale);
   const h = escapeHtml;
   const theme = { ...(exportThemes[compositionId] || exportThemes["digital-momentum"]), signal: accent || exportThemes[compositionId]?.signal || "#ef162f" };
   const get = (id: string) => sections.find((item) => item.id === id);

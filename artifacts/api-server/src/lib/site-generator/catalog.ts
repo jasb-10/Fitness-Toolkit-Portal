@@ -1,4 +1,4 @@
-import type { CompositionDefinition } from "./types";
+import type { CompositionDefinition } from "./types.js";
 
 const core = [
   { field: "businessName", message: "Add the business name." },
@@ -28,6 +28,7 @@ export const compositions: CompositionDefinition[] = [
     visitorJob: "Understand the atmosphere, classes and easiest way to visit.",
     visualGrammar: "Editorial type, generous space, tactile colour and alternating image moments.",
     preferredFor: [/pilates/i, /yoga/i, /barre/i, /movement/i, /studio/i],
+    avoidedFor: [/boxing|martial arts|crossfit|bodybuild|powerlift|strength and conditioning|performance coaching/i, /physio|clinical|sports therapy|injury clinic/i, /online coaching|remote coaching|digital programme|training app/i],
     supportedRoutes: ["book", "class", "credibility"],
     supportedAssets: ["image-light", "image-led", "image-rich"],
     required: [...core],
@@ -40,8 +41,9 @@ export const compositions: CompositionDefinition[] = [
     visitorJob: "See how the programme works and decide whether to apply or join.",
     visualGrammar: "Structured programme map, interface-like panels and strong informational hierarchy.",
     preferredFor: [/online/i, /remote/i, /programme/i, /nutrition/i],
+    avoidedFor: [/pilates studio|yoga studio|barre studio|boxing gym|physio|clinical|in-person classes/i],
     supportedRoutes: ["apply", "purchase", "waitlist"],
-    supportedAssets: ["image-light", "image-led"],
+    supportedAssets: ["image-light", "image-led", "image-rich"],
     required: [...core],
     recommendedFields: ["process", "prices", "results", "faqQuestion"],
   },
@@ -52,6 +54,7 @@ export const compositions: CompositionDefinition[] = [
     visitorJob: "Judge the coaching standard and book the right performance service.",
     visualGrammar: "Documentary photography, restrained colour, performance detail and proof-led modules.",
     preferredFor: [/strength/i, /performance/i, /boxing/i, /martial/i, /conditioning/i],
+    avoidedFor: [/pilates studio|yoga studio|barre studio|nutrition|physio|clinical|online running/i],
     supportedRoutes: ["book", "apply", "credibility"],
     supportedAssets: ["image-led", "image-rich"],
     required: [...core, { minimumAssets: 1, message: "Add one usable coach, client or venue photograph." }],
@@ -64,6 +67,7 @@ export const compositions: CompositionDefinition[] = [
     visitorJob: "Understand the assessment method and verify professional credibility.",
     visualGrammar: "Clinical clarity, measured diagrams, precise spacing and sourced proof.",
     preferredFor: [/physio/i, /rehab/i, /clinical/i, /specialist/i, /sports therapy/i],
+    avoidedFor: [/pilates|yoga|barre|boxing|martial arts|crossfit|bodybuild|powerlift|nutrition|online running|remote coaching/i],
     supportedRoutes: ["book", "credibility"],
     supportedAssets: ["image-light", "image-led"],
     required: [...core, { field: "credentials", message: "Add the professional credentials that may be displayed." }],
@@ -106,4 +110,3 @@ export const compositions: CompositionDefinition[] = [
     recommendedFields: ["programmeStart", "programmeCapacity", "prices", "faqQuestion"],
   },
 ];
-

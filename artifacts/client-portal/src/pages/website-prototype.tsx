@@ -51,6 +51,7 @@ import {
 import { basePath, cn } from "@/lib/utils";
 import { buildGuidedPersonalHtml, GuidedPersonalSite } from "@/components/website/GuidedPersonalSite";
 import { buildCompositionHtml, CompositionSite } from "@/components/website/CompositionSites";
+import { adaptLegacyProject, headlineFitFor, isSitePlanV1, type SitePlanV1 } from "@workspace/site-plan";
 
 type Stage = "home" | "brief" | "content" | "style" | "direction" | "building" | "editor" | "delivery";
 type StyleMode = "recommend" | "choose" | "brand";
@@ -164,6 +165,7 @@ const pageSections = [
   { id: "services", name: "Services", purpose: "Show exactly what customers can buy or book." },
   { id: "approach", name: "How it works", purpose: "Make the first steps feel simple." },
   { id: "about", name: "About the coach or studio", purpose: "Put a real person and method behind the offer." },
+  { id: "schedule", name: "Schedule or timetable", purpose: "Show supplied session times when customers need to plan a visit." },
   { id: "results", name: "Results and credibility", purpose: "Add genuine results or qualifications." },
   { id: "testimonial", name: "Client testimonial", purpose: "Use a real quote, never an invented review." },
   { id: "faq", name: "Frequently asked questions", purpose: "Answer the concern that stops people enquiring." },
@@ -217,18 +219,40 @@ const defaultCopy: SiteCopy = {
   button: "Book a consultation",
 };
 
-function storageKey(userId: string | null | undefined, key: string) {
-  return userId ? `ftk:${userId}:${key}` : null;
-}
-
-function readStored<T>(userId: string | null | undefined, key: string, fallback: T): T {
-  try {
-    const scopedKey = storageKey(userId, key);
-    const value = scopedKey ? localStorage.getItem(scopedKey) : null;
-    return value ? (JSON.parse(value) as T) : fallback;
-  } catch {
-    return fallback;
+function currentSitePlan(base: SitePlanV1, brief: Brief, copy: SiteCopy, sections: GeneratedSection[], compositionId: string, palette: PaletteChoice, fontStyle: string, surface: string, heroImage: string, imageUrls: string[], ownPhoto: boolean): SitePlanV1 {
+  const priorModules = new Map(base.modules.map((module) => [module.id, module]));
+  const modules = sections.map((section) => ({
+    id: section.id,
+    purpose: priorModules.get(section.id)?.purpose || section.id,
+    variant: section.layout || priorModules.get(section.id)?.variant || "editorial",
+    visible: true,
+    eyebrow: section.eyebrow || "",
+    title: section.title,
+    body: section.id === "about" ? copy.about : section.body,
+    highlights: section.highlights || [],
+    provenance: priorModules.get(section.id)?.provenance,
+  }));
+  if (brief.schedule && brief.sections.includes("schedule") && !modules.some((module) => module.id === "schedule")) {
+    modules.push({ id: "schedule", purpose: "Help visitors find a suitable session.", variant: "studio-timetable", visible: true, eyebrow: "Plan your week", title: "Find your next session.", body: brief.schedule, highlights: [], provenance: undefined });
   }
+  const requestedLength = brief.contentLength.toLowerCase();
+  const contentMode = requestedLength === "compact" || requestedLength === "expanded" ? requestedLength : base.contentMode;
+  return {
+    ...base,
+    familyId: compositionId,
+    visitor: { ...base.visitor, audience: brief.audience },
+    conversion: { goal: brief.goal, destination: brief.bookingLink, label: copy.button },
+    narrative: { ...base.narrative, promise: copy.subheadline, orderedModuleIds: modules.map((module) => module.id) },
+    contentMode,
+    assetMode: ownPhoto ? imageUrls.length > 1 ? "multiple" : "single" : "none",
+    visual: { paletteId: palette.id, accent: palette.accent, fontStyle, surface },
+    hero: { ...base.hero, headline: copy.headline, subheadline: copy.subheadline, headlineFit: headlineFitFor(copy.headline), imageUrl: ownPhoto ? heroImage : "" },
+    assets: {
+      images: ownPhoto ? [...new Set([heroImage, ...imageUrls].filter(Boolean))].map((url, index) => ({ url, role: index === 0 ? "hero" as const : index === 1 ? "story" as const : "gallery" as const, alt: `${brief.businessName || "Business"}${index === 0 ? " hero image" : " studio image"}` })) : [],
+    },
+    modules,
+    responsive: { ...base.responsive, headlineFit: headlineFitFor(copy.headline) },
+  };
 }
 
 function escapeHtml(value: string) {
@@ -274,13 +298,13 @@ function sectionEyebrow(id: string, value: string, businessType: string) {
 export default function WebsitePrototypePage({ accountName, accountEmail, accountRole, onSignOut }: { accountName?: string; accountEmail?: string; accountRole?: string | null; onSignOut?: () => void }) {
   const { userId, getToken } = useAuth();
   const resetRequested = new URLSearchParams(window.location.search).get("reset") === "1";
-  const [stage, setStage] = useState<Stage>(() => resetRequested ? "home" : readStored(userId, "stage", "home"));
+  const [stage, setStage] = useState<Stage>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [brief, setBrief] = useState<Brief>(() => resetRequested ? initialBrief : { ...initialBrief, ...readStored(userId, "brief", initialBrief) });
-  const [styleMode, setStyleMode] = useState<StyleMode>(() => readStored(userId, "style-mode", "recommend"));
+  const [brief, setBrief] = useState<Brief>(initialBrief);
+  const [styleMode, setStyleMode] = useState<StyleMode>("recommend");
   const [moods, setMoods] = useState<string[]>(["Bold", "Premium"]);
-  const [paletteId, setPaletteId] = useState(() => readStored(userId, "palette-id", suggestedLook(brief.businessType)));
-  const [fontStyle, setFontStyle] = useState(() => readStored(userId, "font-style", designLooks.find((look) => look.id === paletteId)?.font || "Strong & modern"));
+  const [paletteId, setPaletteId] = useState(() => suggestedLook(initialBrief.businessType));
+  const [fontStyle, setFontStyle] = useState(() => designLooks.find((look) => look.id === suggestedLook(initialBrief.businessType))?.font || "Strong & modern");
   const [surface, setSurface] = useState("Mostly dark");
   const [direction, setDirection] = useState(0);
   const [compositionId, setCompositionId] = useState("guided-personal");
@@ -289,8 +313,9 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const [directionsLoading, setDirectionsLoading] = useState(false);
   const [directionsLoaded, setDirectionsLoaded] = useState(false);
   const [previewSize, setPreviewSize] = useState<PreviewSize>("desktop");
-  const [copy, setCopy] = useState<SiteCopy>(() => readStored(userId, "copy", defaultCopy));
+  const [copy, setCopy] = useState<SiteCopy>(defaultCopy);
   const [generatedSections, setGeneratedSections] = useState<GeneratedSection[]>([]);
+  const [sitePlan, setSitePlan] = useState<SitePlanV1>(() => adaptLegacyProject({}));
   const [selectedPart, setSelectedPart] = useState<EditablePart>("headline");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiChanges, setAiChanges] = useState(5);
@@ -298,8 +323,9 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const [buildIndex, setBuildIndex] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [heroImage, setHeroImage] = useState("https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1800&q=85");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [ownPhoto, setOwnPhoto] = useState(false);
-  const [savedLabel, setSavedLabel] = useState("Saved");
+  const [savedLabel, setSavedLabel] = useState("Loading your project...");
   const [showLocked, setShowLocked] = useState<string | null>(null);
   const [brandColour, setBrandColour] = useState("#ef162f");
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -318,37 +344,62 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const initRef = useRef(false);
+  const hydratingProjectRef = useRef(false);
   const recoveringBuildRef = useRef(false);
   const lastSavedStr = useRef("");
+  const persistedStyleRef = useRef<Record<string, unknown>>({});
 
   const openProject = useCallback((p: NonNullable<typeof projectsQuery.data>[number]) => {
     const projectBrief = { ...initialBrief, ...(p.briefData || {}) } as Brief;
     const style = (p.styleData || {}) as Record<string, unknown>;
+    const projectStage = (p.currentStage || "brief") as Stage;
+    const nextPalette = (style.paletteId as string) || suggestedLook(projectBrief.businessType);
+    const nextFontStyle = (style.fontStyle as string) || designLooks.find((look) => look.id === nextPalette)?.font || "Strong & modern";
+    const nextHeroImage = typeof style.heroImage === "string" && style.heroImage
+      ? style.heroImage
+      : "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1800&q=85";
+    const nextImageUrls = Array.isArray(style.imageUrls) ? style.imageUrls.filter((value): value is string => typeof value === "string") : nextHeroImage.startsWith("/api/storage/") ? [nextHeroImage] : [];
+    const nextCopy = (style.copy as SiteCopy) || defaultCopy;
+    const nextSections = Array.isArray(p.sections) ? p.sections as GeneratedSection[] : [];
+    const nextSitePlan = adaptLegacyProject({ briefData: p.briefData as Record<string, unknown>, styleData: style, sections: p.sections as Array<Record<string, unknown>> });
+    persistedStyleRef.current = style;
+    hydratingProjectRef.current = true;
     setProjectId(p.id);
     setBrief(projectBrief);
-    setStage((p.currentStage && p.currentStage !== "home" ? p.currentStage : "home") as Stage);
+    setStage(projectStage);
     setAiChanges(unlimitedAi ? 99 : Math.max(0, 5 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
     setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
     setStyleMode((style.styleMode as StyleMode) || "recommend");
-    const nextPalette = (style.paletteId as string) || suggestedLook(projectBrief.businessType);
     setPaletteId(nextPalette);
-    setFontStyle((style.fontStyle as string) || designLooks.find((look) => look.id === nextPalette)?.font || "Strong & modern");
+    setFontStyle(nextFontStyle);
     setSurface((style.surface as string) || "Mostly dark");
     setDirection(Number(style.direction || 0));
     setCompositionId((style.compositionId as string) || "guided-personal");
     setBrandColour((style.brandColour as string) || "#ef162f");
-    setCopy((style.copy as SiteCopy) || defaultCopy);
-    setGeneratedSections(Array.isArray(p.sections) ? p.sections as GeneratedSection[] : []);
-    if (typeof style.heroImage === "string" && style.heroImage) {
-      setHeroImage(style.heroImage);
-      setOwnPhoto(style.heroImage.startsWith("/api/storage/"));
-    } else {
-      setHeroImage("https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1800&q=85");
-      setOwnPhoto(false);
-    }
+    setCopy(nextCopy);
+    setGeneratedSections(nextSections);
+    setSitePlan(nextSitePlan);
+    setHeroImage(nextHeroImage);
+    setImageUrls(nextImageUrls);
+    setOwnPhoto(nextHeroImage.startsWith("/api/storage/"));
     if (p.currentStage === "building") recoveringBuildRef.current = true;
-    lastSavedStr.current = "";
-  }, [projectsQuery.data, unlimitedAi]);
+    lastSavedStr.current = JSON.stringify({
+      stage: projectStage,
+      brief: projectBrief,
+      styleMode: (style.styleMode as StyleMode) || "recommend",
+      copy: nextCopy,
+      paletteId: nextPalette,
+      fontStyle: nextFontStyle,
+      surface: (style.surface as string) || "Mostly dark",
+      direction: Number(style.direction || 0),
+      compositionId: (style.compositionId as string) || "guided-personal",
+      heroImage: nextHeroImage,
+      imageUrls: nextImageUrls,
+      brandColour: (style.brandColour as string) || "#ef162f",
+      generatedSections: nextSections,
+    });
+    setSavedLabel("Saved");
+  }, [unlimitedAi]);
 
   useEffect(() => {
     if (!isAuthenticated || !projectsQuery.data || initRef.current) return;
@@ -364,9 +415,10 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         }
       }, {
         onSuccess: (newP) => {
-          setProjectId(newP.id);
+          openProject(newP);
           qc.invalidateQueries({ queryKey: getListWebsiteProjectsQueryKey() });
-        }
+        },
+        onError: () => setSavedLabel("Could not prepare your website project. Please retry."),
       });
     }
   }, [isAuthenticated, projectsQuery.data, openProject]);
@@ -408,52 +460,47 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     if (styleMode === "recommend") return palettes.find((item) => item.id === paletteId) || palettes[0];
     return palettes.find((item) => item.id === paletteId) || palettes[0];
   }, [paletteId, styleMode, brandColour, brief.businessType]);
+  const liveSitePlan = useMemo(() => currentSitePlan(sitePlan, brief, copy, generatedSections, compositionId, palette, fontStyle, surface, heroImage, imageUrls, ownPhoto), [sitePlan, brief, copy, generatedSections, compositionId, palette, fontStyle, surface, heroImage, imageUrls, ownPhoto]);
 
   useEffect(() => {
-    if (resetRequested) {
-      ["stage", "last-stage", "brief", "style-mode", "copy", "palette-id", "font-style"].forEach((key) => {
-        const scopedKey = storageKey(userId, key);
-        if (scopedKey) localStorage.removeItem(scopedKey);
-      });
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, [resetRequested, userId]);
+    if (resetRequested) window.history.replaceState({}, "", window.location.pathname);
+  }, [resetRequested]);
 
   const saveTimeout = useRef<number | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
-    if (resetRequested || !userId) return;
-    localStorage.setItem(storageKey(userId, "stage")!, JSON.stringify(stage));
-    if (stage !== "home") localStorage.setItem(storageKey(userId, "last-stage")!, JSON.stringify(stage));
-    localStorage.setItem(storageKey(userId, "brief")!, JSON.stringify(brief));
-    localStorage.setItem(storageKey(userId, "style-mode")!, JSON.stringify(styleMode));
-    localStorage.setItem(storageKey(userId, "copy")!, JSON.stringify(copy));
-    localStorage.setItem(storageKey(userId, "palette-id")!, JSON.stringify(paletteId));
-    localStorage.setItem(storageKey(userId, "font-style")!, JSON.stringify(fontStyle));
-
+    if (hydratingProjectRef.current) {
+      hydratingProjectRef.current = false;
+      return;
+    }
     if (stage === "building") return;
     if (!isAuthenticated || !projectId || !initRef.current) {
       setSavedLabel("Preparing your account...");
       return;
     }
 
-    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, generatedSections });
+    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, generatedSections });
     if (stateToSave === lastSavedStr.current) return;
     setSavedLabel("Saving...");
     saveTimeout.current = window.setTimeout(() => {
       saveTimeout.current = null;
       saveQueue.current = saveQueue.current.then(async () => {
-        await updateProject.mutateAsync({
+        const updated = await updateProject.mutateAsync({
           projectId,
           data: {
             currentStage: stage,
             briefData: brief as any,
-            styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+            styleData: { ...persistedStyleRef.current, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, assetMode: liveSitePlan.assetMode === "none" ? "image-light" : liveSitePlan.assetMode === "multiple" ? "image-rich" : "image-led", brandColour, copy, sitePlan: liveSitePlan },
             sections: generatedSections as any,
           },
         });
+        if (updated.id !== projectId) throw new Error("The server confirmed a different project");
+        persistedStyleRef.current = (updated.styleData || {}) as Record<string, unknown>;
         lastSavedStr.current = stateToSave;
+        qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
+          current?.map((item) => item.id === updated.id ? updated : item)
+        );
         setSavedLabel("Saved");
       }).catch(() => { setSavedLabel("Save failed — please retry"); });
     }, 1000);
@@ -461,7 +508,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
       saveTimeout.current = null;
     };
-  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, generatedSections, isAuthenticated, projectId, resetRequested, userId]);
+  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, generatedSections, liveSitePlan, isAuthenticated, projectId, resetRequested, userId]);
 
   const loadEligibleDirections = useCallback(async (id = projectId) => {
     if (!id) return;
@@ -489,19 +536,34 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
   const continueToDirections = useCallback(async () => {
     if (!projectId) return;
     setSavedLabel("Checking which designs fit...");
-    await updateProject.mutateAsync({
-      projectId,
-      data: {
-        currentStage: "direction",
-        briefData: brief as any,
-        styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
-        sections: generatedSections as any,
-      },
-    });
-    setStage("direction");
-    await loadEligibleDirections(projectId);
-    setSavedLabel("Saved");
-  }, [projectId, updateProject, brief, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy, generatedSections, loadEligibleDirections]);
+    if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+    saveTimeout.current = null;
+    try {
+      await saveQueue.current;
+      const updated = await updateProject.mutateAsync({
+        projectId,
+        data: {
+          currentStage: "direction",
+          briefData: brief as any,
+          styleData: { ...persistedStyleRef.current, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, copy },
+          sections: generatedSections as any,
+        },
+      });
+      if (updated.id !== projectId) throw new Error("The server confirmed a different project");
+      persistedStyleRef.current = (updated.styleData || {}) as Record<string, unknown>;
+      const confirmedState = JSON.stringify({ stage: "direction", brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, generatedSections });
+      lastSavedStr.current = confirmedState;
+      qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
+        current?.map((item) => item.id === updated.id ? updated : item)
+      );
+      setStage("direction");
+      await loadEligibleDirections(projectId);
+      setSavedLabel("Saved");
+    } catch (error) {
+      console.error("Could not save the website direction", error);
+      setSavedLabel("Save failed — your previous project data is unchanged");
+    }
+  }, [projectId, updateProject, brief, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, copy, generatedSections, loadEligibleDirections, qc, projectsQuery.data]);
 
   useEffect(() => {
     if (stage === "direction" && projectId && !directionsLoaded && !directionsLoading) void loadEligibleDirections(projectId);
@@ -549,7 +611,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
           currentStage: "building",
           briefData: brief as any,
           styleData: {
-            styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy: previousCopy,
+            ...persistedStyleRef.current, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, copy: previousCopy,
           },
           sections: generatedSections as any,
         },
@@ -557,6 +619,8 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       const generated = await generateProject.mutateAsync({ projectId });
       setGenerationAttempts(Number((generated as { generationAttempts?: number }).generationAttempts || generationAttempts + 1));
       const generatedCopy = (generated.styleData as { copy?: SiteCopy } | null)?.copy;
+      persistedStyleRef.current = (generated.styleData || {}) as Record<string, unknown>;
+      setSitePlan(adaptLegacyProject({ briefData: generated.briefData as Record<string, unknown>, styleData: generated.styleData as Record<string, unknown>, sections: generated.sections as Array<Record<string, unknown>> }));
       if (generatedCopy) setCopy(generatedCopy);
       if (Array.isArray(generated.sections)) setGeneratedSections(generated.sections as GeneratedSection[]);
       setSavedLabel("Generated and saved");
@@ -579,13 +643,6 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
     }
   };
 
-  const clearLocalWebsiteState = () => {
-    ["stage", "last-stage", "brief", "style-mode", "copy", "palette-id", "font-style"].forEach((key) => {
-      const scopedKey = storageKey(userId, key);
-      if (scopedKey) localStorage.removeItem(scopedKey);
-    });
-  };
-
   const startFreshWebsite = async () => {
     if (!isAuthenticated) return;
     setSavedLabel("Preparing a new website...");
@@ -600,7 +657,6 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
           seedFromProfile: true,
         },
       });
-      clearLocalWebsiteState();
       openProject(project);
       setStage("brief");
       setDirectionsLoaded(false);
@@ -622,6 +678,25 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       ...section,
       highlights: section.highlights?.map((highlight, position) => position === index ? value : highlight),
     } : section));
+  const chooseHeroVariant = (variant: string) => setSitePlan((current) => ({ ...current, hero: { ...current.hero, variant } }));
+  const removeAllImages = () => {
+    setHeroImage("");
+    setImageUrls([]);
+    setOwnPhoto(false);
+    setSavedLabel("Images removed — saving...");
+  };
+  const restoreGeneratedVersion = () => {
+    const snapshot = persistedStyleRef.current.generatedVersion as { copy?: SiteCopy; sections?: GeneratedSection[]; sitePlan?: unknown; compositionId?: string } | undefined;
+    if (!snapshot?.copy || !Array.isArray(snapshot.sections) || !isSitePlanV1(snapshot.sitePlan)) {
+      setSavedLabel("The original generated version is unavailable for this older project.");
+      return;
+    }
+    setCopy(snapshot.copy);
+    setGeneratedSections(snapshot.sections);
+    setSitePlan(snapshot.sitePlan);
+    if (snapshot.compositionId) setCompositionId(snapshot.compositionId);
+    setSavedLabel("Generated version restored — saving...");
+  };
 
   const applyAiChange = async () => {
     if (!aiPrompt.trim() || aiChanges <= 0 || !projectId) return;
@@ -635,7 +710,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         data: {
           currentStage: "editor",
           briefData: brief as any,
-          styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+          styleData: { ...persistedStyleRef.current, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, brandColour, copy },
           sections: generatedSections as any,
         },
       });
@@ -644,6 +719,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         data: { prompt: aiPrompt.trim(), selectedPart, currentCopy: copy },
       });
       const updatedCopy = (updated.styleData as { copy?: SiteCopy } | null)?.copy;
+      persistedStyleRef.current = (updated.styleData || {}) as Record<string, unknown>;
       if (!updatedCopy) throw new Error("Updated copy was missing");
       setCopy(updatedCopy);
       setAiChanges(unlimitedAi ? 99 : Math.max(0, 5 - Number((updated as { refinementAttempts?: number }).refinementAttempts || 0)));
@@ -681,9 +757,11 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
           projectId,
           data: { objectPath, fileName: file.name, contentType: file.type, size: file.size, rightsStatus: "customer_owned" },
         });
+        const storedUrl = `/api/storage${objectPath}`;
         setUploadedFiles((current) => [...current, file.name]);
+        setImageUrls((current) => [...new Set([...current, storedUrl])]);
         if (completed === 0) {
-          setHeroImage(`/api/storage${objectPath}`);
+          setHeroImage(storedUrl);
           setOwnPhoto(true);
         }
         completed++;
@@ -708,20 +786,28 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       setStage("editor");
       return;
     }
-    if (!ownPhoto && compositionId !== "guided-personal") {
+    if (!ownPhoto && !["guided-personal", "editorial-studio", "digital-momentum"].includes(compositionId)) {
       setSavedLabel("Replace the demonstration image with a photo you own or may use before downloading.");
       setStage("editor");
       return;
     }
     let exportedHero = heroImage;
-    if (ownPhoto && heroImage.startsWith("/")) {
+    let exportedSitePlan = liveSitePlan;
+    if (ownPhoto) {
       try {
         const token = await getToken();
-        const response = await fetch(heroImage, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
-        if (!response.ok) throw new Error("Could not retrieve uploaded image");
-        exportedHero = await blobToDataUrl(await response.blob());
+        const embed = async (url: string) => {
+          if (!url.startsWith("/")) return url;
+          const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+          if (!response.ok) throw new Error("Could not retrieve uploaded image");
+          return blobToDataUrl(await response.blob());
+        };
+        const sourceAssets = liveSitePlan.assets?.images || [{ url: heroImage, role: "hero" as const, alt: `${brief.businessName} hero image` }];
+        const embeddedAssets = await Promise.all(sourceAssets.map(async (asset) => ({ ...asset, url: await embed(asset.url) })));
+        exportedHero = await embed(heroImage);
+        exportedSitePlan = { ...liveSitePlan, hero: { ...liveSitePlan.hero, imageUrl: exportedHero }, assets: { images: embeddedAssets } };
       } catch {
-        setSavedLabel("Download failed — uploaded image unavailable");
+        setSavedLabel("Download failed — one or more uploaded images are unavailable");
         return;
       }
     }
@@ -756,6 +842,10 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         heroImage: exportedHero,
         useImage: ownPhoto,
         accent: palette.accent,
+        paletteDark: palette.dark,
+        paletteLight: palette.light,
+        fontStyle,
+        sitePlan: exportedSitePlan,
         bookingUrl: safeLink(brief.bookingLink),
         locale,
       });
@@ -823,7 +913,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
       setSavedLabel("Add a valid booking, enquiry, email or telephone link before approval.");
       return;
     }
-    if (!ownPhoto) {
+    if (!ownPhoto && !["guided-personal", "editorial-studio", "digital-momentum"].includes(compositionId)) {
       setSavedLabel("Replace the demonstration image with a photo you own or may use before approval.");
       return;
     }
@@ -839,7 +929,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
             status: "approved",
             currentStage: "delivery",
             briefData: brief as any,
-            styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+            styleData: { ...persistedStyleRef.current, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, imageUrls, assetMode: liveSitePlan.assetMode === "none" ? "image-light" : liveSitePlan.assetMode === "multiple" ? "image-rich" : "image-led", brandColour, copy, sitePlan: liveSitePlan },
             sections: generatedSections as any,
           },
         });
@@ -854,14 +944,14 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
 
   return (
     <div className="flex flex-col bg-background text-foreground h-full min-h-[calc(100vh-3rem)] lg:min-h-screen">
-      {stage === "home" && <HomeScreen hasProgress={Boolean(brief.businessName.trim())} start={() => setStage("brief")} resume={() => setStage(readStored<Stage>(userId, "last-stage", "brief"))} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} />}
+      {stage === "home" && <HomeScreen hasProgress={Boolean(brief.businessName.trim())} start={() => setStage("brief")} resume={() => setStage("brief")} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} />}
       {stage === "brief" && <BriefScreen brief={brief} setBrief={setBrief} files={uploadedFiles} upload={() => uploadRef.current?.click()} back={() => setStage("home")} next={() => setStage("content")} saved={savedLabel} />}
       {stage === "content" && <ContentScreen brief={brief} setBrief={setBrief} back={() => setStage("brief")} next={() => setStage("style")} saved={savedLabel} />}
       {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} businessType={brief.businessType} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => void continueToDirections()} setDirection={setDirection} palette={palette} />}
       {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} options={directionOptions} selectedId={compositionId} setSelectedId={setCompositionId} loading={directionsLoading} blocks={directionBlocks} status={savedLabel} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} unlimitedAi={unlimitedAi} returnToEditor={() => setStage("editor")} />}
       {stage === "building" && <BuildingScreen brief={brief} palette={palette} copy={copy} heroImage={heroImage} index={buildIndex} />}
-      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} unlimitedAi={unlimitedAi} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} generationAttempts={generationAttempts} saved={savedLabel} />}
-      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
+      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} sitePlan={liveSitePlan} ownPhoto={ownPhoto} replaceImage={() => imageRef.current?.click()} removeImages={removeAllImages} chooseHeroVariant={chooseHeroVariant} restoreGeneratedVersion={restoreGeneratedVersion} canRestoreGenerated={Boolean(persistedStyleRef.current.generatedVersion)} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} unlimitedAi={unlimitedAi} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} startFresh={() => void startFreshWebsite()} startingFresh={createProject.isPending} generationAttempts={generationAttempts} saved={savedLabel} />}
+      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} sitePlan={liveSitePlan} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
       <input ref={uploadRef} className="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
       <input ref={imageRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
       {showLocked && <LockedModal product={showLocked} close={() => setShowLocked(null)} />}
@@ -1030,25 +1120,25 @@ function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Bri
   </div>;
 }
 
-function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, compositionId, ownPhoto, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, unlimitedAi, approve, changeDirection, startFresh, startingFresh, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; unlimitedAi: boolean; approve: () => void; changeDirection: () => void; startFresh: () => void; startingFresh: boolean; generationAttempts: number; saved: string }) {
+function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, compositionId, sitePlan, ownPhoto, replaceImage, removeImages, chooseHeroVariant, restoreGeneratedVersion, canRestoreGenerated, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, unlimitedAi, approve, changeDirection, startFresh, startingFresh, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; compositionId: string; sitePlan: SitePlanV1; ownPhoto: boolean; replaceImage: () => void; removeImages: () => void; chooseHeroVariant: (variant: string) => void; restoreGeneratedVersion: () => void; canRestoreGenerated: boolean; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; unlimitedAi: boolean; approve: () => void; changeDirection: () => void; startFresh: () => void; startingFresh: boolean; generationAttempts: number; saved: string }) {
   return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Edit the hero and about text in the preview; edit the remaining sections in the right panel.</div></div><button onClick={startFresh} disabled={startingFresh} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold disabled:opacity-50"><RefreshCw className="h-4 w-4" />{startingFresh ? "Starting..." : "New website"}</button><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
-    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
-      <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
+    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} sitePlan={sitePlan} ownPhoto={ownPhoto} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
+      <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary">{ownPhoto && heroImage ? <img src={heroImage} className="h-full w-full object-cover" alt="Current" /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />}</div>{ownPhoto ? "Replace hero image" : "Add an image"}</button>{ownPhoto && <button onClick={removeImages} className="mt-2 w-full rounded-xl border border-border px-4 py-2.5 text-sm font-semibold">Remove uploaded images</button>}
       <div className="mt-6 border-t pt-5"><Field label="Where should the main button go?" hint="Booking URL, mailto: email link, or tel: phone link."><TextInput value={brief.bookingLink} onChange={(value) => setBrief({ ...brief, bookingLink: value })} placeholder="https://..." /></Field>{brief.bookingLink && !safeLink(brief.bookingLink) && <p className="mt-2 text-xs text-red-700">This link is not valid yet.</p>}</div>
       <details className="mt-6 border-t pt-5"><summary className="cursor-pointer text-sm font-black">Evidence and FAQ</summary><div className="mt-4 space-y-4">{([['credentials', 'Qualifications'], ['results', 'Verified results'], ['testimonialQuote', 'Approved client quote'], ['testimonialName', 'Client name'], ['faqQuestion', 'Common question'], ['faqAnswer', 'Your answer']] as const).map(([key, label]) => <Field key={key} label={label}><textarea value={brief[key]} onChange={(event) => setBrief({ ...brief, [key]: event.target.value })} className="min-h-16 w-full rounded-xl border border-border p-3 text-sm" /></Field>)}</div></details>
-      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} aria-label={`Use ${item.name} colours`} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select><button onClick={changeDirection} className="mt-3 w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold">Change opening layout</button><p className="mt-2 text-xs text-muted-foreground">Choose a layout without using an AI draft, or generate a fresh draft if you have one left ({Math.max(0, 2 - generationAttempts)} remaining).</p></div>
-      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Page sections</div><p className="mt-1 text-xs text-muted-foreground">Changes here appear in both your preview and downloaded page.</p>{generatedSections.filter((section) => ["services", "approach", "about", "contact"].includes(section.id)).map((section) => <details key={section.id} className="mt-3 rounded-xl border border-border p-3"><summary className="cursor-pointer text-sm font-semibold capitalize">{section.id}</summary><label className="mt-4 block text-xs font-semibold">Small label<input value={section.eyebrow || ""} onChange={(event) => updateSection(section.id, "eyebrow", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Heading<input value={section.title} onChange={(event) => updateSection(section.id, "title", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Text<textarea value={section.id === "about" ? copy.about : section.body} onChange={(event) => section.id === "about" ? updateCopy("about", event.target.value) : updateSection(section.id, "body", event.target.value)} className="mt-2 min-h-28 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>{section.highlights?.map((highlight, index) => <label key={index} className="mt-3 block text-xs font-semibold">{section.id === "approach" ? "Step" : "Card"} {index + 1}<textarea value={highlight} onChange={(event) => updateHighlight(section.id, index, event.target.value)} className="mt-2 min-h-16 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>)}</details>)}</div>
+      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Website style</div><div className="mt-3 grid grid-cols-4 gap-2">{palettes.map((item) => <button key={item.id} onClick={() => setPaletteId(item.id)} aria-label={`Use ${item.name} colours`} className={cn("h-9 rounded-lg border-2", paletteId === item.id ? "border-border" : "border-transparent")} style={{ background: `linear-gradient(135deg,${item.dark} 50%,${item.accent} 50%)` }} />)}</div><select value={fontStyle} onChange={(event) => setFontStyle(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-border px-3 text-sm"><option>Strong & modern</option><option>Premium editorial</option><option>Clean professional</option></select>{compositionId === "editorial-studio" && <div className="mt-4"><div className="text-xs font-semibold">Opening composition</div><div className="mt-2 grid grid-cols-3 gap-2">{[{ id: "typographic", label: "Type-led" }, { id: "split", label: "Split" }, { id: "immersive", label: "Image-led" }].map((option) => <button key={option.id} disabled={option.id === "immersive" && !ownPhoto} onClick={() => chooseHeroVariant(option.id)} className={cn("rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-35", sitePlan.hero.variant === option.id ? "border-primary bg-primary/5" : "border-border")}>{option.label}</button>)}</div></div>}{compositionId === "digital-momentum" && <div className="mt-4"><div className="text-xs font-semibold">Opening composition</div><div className="mt-2 grid grid-cols-3 gap-2">{[{ id: "track", label: "Track" }, { id: "dashboard", label: "Dashboard" }, { id: "image-signal", label: "Image-led" }].map((option) => <button key={option.id} disabled={option.id === "image-signal" && !ownPhoto} onClick={() => chooseHeroVariant(option.id)} className={cn("rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-35", sitePlan.hero.variant === option.id ? "border-primary bg-primary/5" : "border-border")}>{option.label}</button>)}</div></div>}{compositionId === "documentary-performance" && <div className="mt-4"><div className="text-xs font-semibold">Opening composition</div><div className="mt-2 grid grid-cols-3 gap-2">{[{ id: "dossier", label: "Dossier" }, { id: "full-bleed", label: "Full image" }, { id: "sequence", label: "Sequence" }].map((option) => <button key={option.id} disabled={option.id === "sequence" && sitePlan.assetMode !== "multiple"} onClick={() => chooseHeroVariant(option.id)} className={cn("rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-35", sitePlan.hero.variant === option.id ? "border-primary bg-primary/5" : "border-border")}>{option.label}</button>)}</div></div>}{compositionId === "precision-practice" && <div className="mt-4"><div className="text-xs font-semibold">Opening composition</div><div className="mt-2 grid grid-cols-3 gap-2">{[{ id: "assessment", label: "Assessment" }, { id: "practitioner", label: "Practitioner" }, { id: "pathway", label: "Pathway" }].map((option) => <button key={option.id} disabled={option.id === "practitioner" && !ownPhoto} onClick={() => chooseHeroVariant(option.id)} className={cn("rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-35", sitePlan.hero.variant === option.id ? "border-primary bg-primary/5" : "border-border")}>{option.label}</button>)}</div></div>}<button onClick={changeDirection} className="mt-3 w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold">Explore other design families</button><p className="mt-2 text-xs text-muted-foreground">These design controls use no AI. A new generated draft uses one of your included drafts ({Math.max(0, 2 - generationAttempts)} remaining).</p></div>
+      <div className="mt-6 border-t pt-5"><div className="text-sm font-black">Page sections</div><p className="mt-1 text-xs text-muted-foreground">Show or hide optional sections. Contact remains the final action.</p><div className="mt-3 space-y-2">{[...new Set([...generatedSections.map((section) => section.id), ...(brief.schedule ? ["schedule"] : [])])].filter((id) => id !== "contact").map((id) => <label key={id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm capitalize"><span>{id}</span><input type="checkbox" checked={brief.sections.includes(id)} onChange={(event) => setBrief({ ...brief, sections: event.target.checked ? [...new Set([...brief.sections, id])] : brief.sections.filter((item) => item !== id) })} /></label>)}</div>{generatedSections.filter((section) => ["services", "approach", "about", "contact"].includes(section.id)).map((section) => <details key={section.id} className="mt-3 rounded-xl border border-border p-3"><summary className="cursor-pointer text-sm font-semibold capitalize">Edit {section.id}</summary><label className="mt-4 block text-xs font-semibold">Small label<input value={section.eyebrow || ""} onChange={(event) => updateSection(section.id, "eyebrow", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Heading<input value={section.title} onChange={(event) => updateSection(section.id, "title", event.target.value)} className="mt-2 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold">Text<textarea value={section.id === "about" ? copy.about : section.body} onChange={(event) => section.id === "about" ? updateCopy("about", event.target.value) : updateSection(section.id, "body", event.target.value)} className="mt-2 min-h-28 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>{section.highlights?.map((highlight, index) => <label key={index} className="mt-3 block text-xs font-semibold">{section.id === "approach" ? "Step" : "Card"} {index + 1}<textarea value={highlight} onChange={(event) => updateHighlight(section.id, index, event.target.value)} className="mt-2 min-h-16 w-full rounded-lg border border-border p-2 text-sm font-normal" /></label>)}</details>)}{canRestoreGenerated && <button onClick={restoreGeneratedVersion} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold"><RotateCcw className="h-4 w-4" />Restore generated version</button>}</div>
       <div className="mt-6 rounded-2xl border border-border bg-secondary p-4"><div className="flex items-center gap-2 text-sm font-black"><Sparkles className="h-4 w-4 text-muted-foreground" />Apply a copy edit</div><textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Make this feel warmer without adding new claims." className="mt-3 min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none" /><div className="mt-3 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{unlimitedAi ? "Owner testing mode" : `${aiChanges} assisted edits remaining`}</span><button aria-label="Apply copy edit" onClick={applyAiChange} disabled={!aiPrompt.trim() || aiChanges <= 0} className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-white disabled:opacity-35"><ArrowRight className="h-4 w-4" /></button></div></div></aside></div>
   </div>;
 }
 
-function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, direction, compositionId, ownPhoto, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
+function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, direction, compositionId, sitePlan, ownPhoto, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; heroImage: string; direction: number; compositionId: string; sitePlan?: SitePlanV1; ownPhoto: boolean; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
   const narrow = previewSize === "mobile";
   if (compositionId === "guided-personal") {
     return <GuidedPersonalSite brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent === "#ef162f" ? "#e0bca9" : palette.accent} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
   }
   if (["editorial-studio", "digital-momentum", "documentary-performance", "precision-practice", "community-schedule", "private-catalogue", "campaign-launch"].includes(compositionId)) {
-    return <CompositionSite compositionId={compositionId} brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
+    return <CompositionSite compositionId={compositionId} brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent} paletteDark={palette.dark} paletteLight={palette.light} fontStyle={fontStyle} sitePlan={sitePlan} previewMode={previewSize} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
   }
   const selected = "relative outline outline-2 outline-offset-4 outline-[#ef162f]";
   const included = (brief.sections || initialBrief.sections).filter((id) => id !== "approach" || generatedSections.some((section) => section.id === id));
@@ -1076,10 +1166,10 @@ function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, dir
 
 function WebCard({ title, text }: { title: string; text: string }) { return <div className="rounded-xl bg-secondary p-5"><div className="font-bold">{title}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></div>; }
 
-function DeliveryScreen({ brief, copy, generatedSections, palette, fontStyle, heroImage, direction, compositionId, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; edit: () => void; download: () => void }) {
+function DeliveryScreen({ brief, copy, generatedSections, palette, fontStyle, heroImage, direction, compositionId, sitePlan, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; compositionId: string; sitePlan: SitePlanV1; ownPhoto: boolean; edit: () => void; download: () => void }) {
   const [publishingPath, setPublishingPath] = useState<"guide" | "hosting" | "developer" | null>(null);
   return <div><ShellHeader step={5} title="Your website is ready" subtitle="Your approved website, files and publishing guidance are available below." />
-    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website belongs to you. The download is an HTML file, not a live hosted website.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website HTML</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is embedded inside the downloaded file." : "This design is image-light, so it remains complete without stock photography."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" onClick={() => setPublishingPath("guide")} selected={publishingPath === "guide"} /><DeliveryChoice icon={Globe2} title="I already have hosting" onClick={() => setPublishingPath("hosting")} selected={publishingPath === "hosting"} /><DeliveryChoice icon={FileArchive} title="Give it to my developer" onClick={() => setPublishingPath("developer")} selected={publishingPath === "developer"} /></div>{publishingPath && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6"><strong>{publishingPath === "guide" ? "A simple route to a live page" : publishingPath === "hosting" ? "Using your existing provider" : "Developer hand-off"}</strong><p className="mt-2 text-muted-foreground">{publishingPath === "guide" ? "Download the HTML, open it on your computer to check the final version, then upload it to a static website host. The host gives you a web address; connecting your own domain is an optional final step. Hosting is a separate service and is not included in this purchase." : publishingPath === "hosting" ? "Download the HTML and ask your hosting provider how to publish a standalone static page. Some builders, including WordPress and Squarespace, do not accept a complete HTML page as a one-click replacement. Keep your existing site unchanged until you have tested the new page at a separate address." : "Download the HTML and send that file to your developer with your preferred domain, booking destination and any final copy changes. They can publish it on your hosting and test the form or booking link. You do not need to share hosting passwords inside this portal."}</p></div>}</div></aside></section>
+    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} sitePlan={sitePlan} ownPhoto={ownPhoto} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website belongs to you. The download is an HTML file, not a live hosted website.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website HTML</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is embedded inside the downloaded file." : "This design is image-light, so it remains complete without stock photography."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" onClick={() => setPublishingPath("guide")} selected={publishingPath === "guide"} /><DeliveryChoice icon={Globe2} title="I already have hosting" onClick={() => setPublishingPath("hosting")} selected={publishingPath === "hosting"} /><DeliveryChoice icon={FileArchive} title="Give it to my developer" onClick={() => setPublishingPath("developer")} selected={publishingPath === "developer"} /></div>{publishingPath && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6"><strong>{publishingPath === "guide" ? "A simple route to a live page" : publishingPath === "hosting" ? "Using your existing provider" : "Developer hand-off"}</strong><p className="mt-2 text-muted-foreground">{publishingPath === "guide" ? "Download the HTML, open it on your computer to check the final version, then upload it to a static website host. The host gives you a web address; connecting your own domain is an optional final step. Hosting is a separate service and is not included in this purchase." : publishingPath === "hosting" ? "Download the HTML and ask your hosting provider how to publish a standalone static page. Some builders, including WordPress and Squarespace, do not accept a complete HTML page as a one-click replacement. Keep your existing site unchanged until you have tested the new page at a separate address." : "Download the HTML and send that file to your developer with your preferred domain, booking destination and any final copy changes. They can publish it on your hosting and test the form or booking link. You do not need to share hosting passwords inside this portal."}</p></div>}</div></aside></section>
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><BuildCheck title="Visual presentation" text="Colour, typography, imagery and spacing applied consistently." /><BuildCheck title="Visitor journey" text="Primary service and action established above the fold." /><BuildCheck title="Mobile presentation" text="Responsive layout prepared for phones and tablets." /><BuildCheck title="SEO foundations" text="Title, description, headings and image text prepared." /></section></div>
   </div>;
 }

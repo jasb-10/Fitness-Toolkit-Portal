@@ -1,4 +1,4 @@
-import type { GeneratedDraft, SiteBrief, ValidationIssue } from "./types";
+import type { GeneratedDraft, SiteBrief, ValidationIssue } from "./types.js";
 
 const forbidden = [
   /lorem ipsum/i,

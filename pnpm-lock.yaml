@@ -4,72 +4,6 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
-catalogs:
-  default:
-    '@replit/vite-plugin-cartographer':
-      specifier: ^0.5.1
-      version: 0.5.1
-    '@replit/vite-plugin-dev-banner':
-      specifier: ^0.1.1
-      version: 0.1.2
-    '@replit/vite-plugin-runtime-error-modal':
-      specifier: ^0.0.6
-      version: 0.0.6
-    '@tailwindcss/vite':
-      specifier: ^4.1.14
-      version: 4.2.1
-    '@tanstack/react-query':
-      specifier: ^5.90.21
-      version: 5.90.21
-    '@types/node':
-      specifier: ^25.3.3
-      version: 25.3.5
-    '@types/react':
-      specifier: ^19.2.0
-      version: 19.2.14
-    '@types/react-dom':
-      specifier: ^19.2.0
-      version: 19.2.3
-    '@vitejs/plugin-react':
-      specifier: ^5.0.4
-      version: 5.1.4
-    class-variance-authority:
-      specifier: ^0.7.1
-      version: 0.7.1
-    clsx:
-      specifier: ^2.1.1
-      version: 2.1.1
-    drizzle-orm:
-      specifier: ^0.45.2
-      version: 0.45.2
-    framer-motion:
-      specifier: ^12.23.24
-      version: 12.35.1
-    lucide-react:
-      specifier: ^0.545.0
-      version: 0.545.0
-    react:
-      specifier: 19.1.0
-      version: 19.1.0
-    react-dom:
-      specifier: 19.1.0
-      version: 19.1.0
-    tailwind-merge:
-      specifier: ^3.3.1
-      version: 3.5.0
-    tailwindcss:
-      specifier: ^4.1.14
-      version: 4.2.1
-    tsx:
-      specifier: ^4.21.0
-      version: 4.21.0
-    vite:
-      specifier: ^7.3.2
-      version: 7.3.2
-    zod:
-      specifier: ^3.25.76
-      version: 3.25.76
-
 overrides:
   esbuild>@esbuild/darwin-arm64: '-'
   esbuild>@esbuild/darwin-x64: '-'
@@ -159,7 +93,7 @@ importers:
     dependencies:
       stripe:
         specifier: ^22.0.2
-        version: 22.0.2(@types/node@25.3.5)
+        version: 22.0.2
     devDependencies:
       prettier:
         specifier: ^3.8.1
@@ -172,7 +106,7 @@ importers:
     dependencies:
       '@clerk/express':
         specifier: ^2.1.5
-        version: 2.1.5(express@5.2.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 2.1.5(express@5.2.1)
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0
@@ -188,6 +122,9 @@ importers:
       '@workspace/integrations-openai-ai-server':
         specifier: workspace:*
         version: link:../../lib/integrations-openai-ai-server
+      '@workspace/site-plan':
+        specifier: workspace:*
+        version: link:../../lib/site-plan
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -217,7 +154,7 @@ importers:
         version: 10.5.0
       resend:
         specifier: 4.0.0
-        version: 4.0.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 4.0.0
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -394,6 +331,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/site-plan':
+        specifier: workspace:*
+        version: link:../../lib/site-plan
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -710,6 +650,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.3.5
+
+  lib/site-plan: {}
 
   scripts:
     devDependencies:
@@ -3527,9 +3469,6 @@ packages:
     resolution: {integrity: sha512-kVCxPF3vQM/N0B1PmoqVUqgHP+EeVjmZSQn+1oCRPxd2P21P2F19lIgbR3HBosbB1PUhOAoctJnfEn2GbN2eZA==}
     engines: {node: '>=18'}
 
-  get-tsconfig@4.13.6:
-    resolution: {integrity: sha512-shZT/QMiSHc/YBLxxOkMtgSid5HFoauqCE3/exfsEcwg1WkeqjG+V40yBbBrsD+jW2HDXcs28xOfcbm2jI8Ddw==}
-
   get-tsconfig@4.14.3:
     resolution: {integrity: sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA==}
 
@@ -4948,19 +4887,19 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@clerk/backend@3.2.13(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@clerk/backend@3.2.13':
     dependencies:
-      '@clerk/shared': 4.8.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@clerk/shared': 4.8.2
       standardwebhooks: 1.0.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - react
       - react-dom
 
-  '@clerk/express@2.1.5(express@5.2.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@clerk/express@2.1.5(express@5.2.1)':
     dependencies:
-      '@clerk/backend': 3.2.13(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@clerk/shared': 4.8.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@clerk/backend': 3.2.13
+      '@clerk/shared': 4.8.2
       express: 5.2.1
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -4996,16 +4935,13 @@ snapshots:
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
 
-  '@clerk/shared@4.8.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@clerk/shared@4.8.2':
     dependencies:
       '@tanstack/query-core': 5.90.16
       dequal: 2.0.3
       glob-to-regexp: 0.4.1
       js-cookie: 3.0.5
       std-env: 3.10.0
-    optionalDependencies:
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
 
   '@clerk/themes@2.4.57(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
@@ -6638,12 +6574,10 @@ snapshots:
 
   '@radix-ui/rect@1.1.3': {}
 
-  '@react-email/render@0.0.17(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@react-email/render@0.0.17':
     dependencies:
       html-to-text: 9.0.5
       js-beautify: 1.15.4
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
       react-promise-suspense: 0.3.4
 
   '@replit/vite-plugin-cartographer@0.5.1':
@@ -7801,10 +7735,6 @@ snapshots:
       '@sec-ant/readable-stream': 0.4.1
       is-stream: 4.0.1
 
-  get-tsconfig@4.13.6:
-    dependencies:
-      resolve-pkg-maps: 1.0.0
-
   get-tsconfig@4.14.3:
     dependencies:
       resolve-pkg-maps: 1.0.0
@@ -8678,9 +8608,9 @@ snapshots:
 
   requires-port@1.0.0: {}
 
-  resend@4.0.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+  resend@4.0.0:
     dependencies:
-      '@react-email/render': 0.0.17(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@react-email/render': 0.0.17
     transitivePeerDependencies:
       - react
       - react-dom
@@ -8871,9 +8801,7 @@ snapshots:
 
   strip-json-comments@5.0.3: {}
 
-  stripe@22.0.2(@types/node@25.3.5):
-    optionalDependencies:
-      '@types/node': 25.3.5
+  stripe@22.0.2: {}
 
   strnum@2.2.3: {}
 
@@ -8937,7 +8865,7 @@ snapshots:
   tsx@4.21.0:
     dependencies:
       esbuild: 0.27.3
-      get-tsconfig: 4.13.6
+      get-tsconfig: 4.14.3
     optionalDependencies:
       fsevents: 2.3.3
 
