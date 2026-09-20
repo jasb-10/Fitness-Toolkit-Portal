@@ -57,7 +57,7 @@ export function validateGeneratedDraft(brief: SiteBrief, draft: GeneratedDraft):
   for (const [index, section] of draft.sections.entries()) {
     if (seen.has(section.id)) issues.push({ code: "duplicate-section", severity: "error", message: `The ${section.id} section appears more than once.`, path: `sections.${index}` });
     seen.add(section.id);
-    const minimumBodyWords = ["testimonial", "contact"].includes(section.id) ? 4 : 12;
+    const minimumBodyWords = ["testimonial", "contact", "faq", "results"].includes(section.id) ? 4 : 12;
     if (words(section.title) < 2 || words(section.body) < minimumBodyWords) {
       issues.push({ code: "thin-section", severity: "error", message: `The ${section.id} section does not have enough real content.`, path: `sections.${index}` });
     }
