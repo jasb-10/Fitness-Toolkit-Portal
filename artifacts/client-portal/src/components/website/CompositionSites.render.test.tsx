@@ -69,4 +69,43 @@ assert.match(exportedMobileHtml, /data-hero="split"/);
 assert.match(exportedMobileHtml, /data:image\/svg\+xml/);
 assert.doesNotMatch(exportedMobileHtml, /Monday 07:30/);
 assert.match(exportedMobileHtml, /@media\(max-width:600px\).*font-size:2\.8rem/s);
+
+// Regression: a saved Community Schedule draft must render the current section
+// controls and visual choices, not the family defaults or stale schedule data.
+const harbourBrief = {
+  ...brief,
+  businessName: "Harbour Movement Studio",
+  sections: ["services", "approach", "about", "faq", "contact"],
+  schedule: "Monday 07:30; Wednesday 18:00",
+};
+const communityProps = {
+  compositionId: "community-schedule",
+  brief: harbourBrief,
+  copy,
+  sections,
+  heroImage: "",
+  useImage: false,
+  accent: "#c76f52",
+  paletteDark: "#24342f",
+  paletteLight: "#f7f0e5",
+  fontStyle: "Premium editorial",
+  narrow: false,
+};
+const communityHtml = renderToStaticMarkup(createElement(CompositionSite, communityProps));
+const exportedCommunityHtml = buildCompositionHtml({ ...communityProps, bookingUrl: "https://example.com/book", locale: "en-GB" });
+assert.match(communityHtml, /data-module="services"/);
+assert.match(communityHtml, /data-module="approach"/);
+assert.match(communityHtml, /data-module="about"/);
+assert.match(communityHtml, /data-module="faq"/);
+assert.match(communityHtml, /data-module="contact"/);
+assert.doesNotMatch(communityHtml, /data-module="schedule"/);
+assert.match(communityHtml, /--community-display:&quot;Iowan Old Style&quot;/);
+assert.match(communityHtml, /--community-ink:#24342f/);
+assert.match(exportedCommunityHtml, /data-module="services"/);
+assert.match(exportedCommunityHtml, /data-module="approach"/);
+assert.match(exportedCommunityHtml, /data-module="about"/);
+assert.match(exportedCommunityHtml, /data-module="faq"/);
+assert.match(exportedCommunityHtml, /data-module="contact"/);
+assert.doesNotMatch(exportedCommunityHtml, /data-module="schedule"/);
+assert.match(exportedCommunityHtml, /--ink:#24342f;--paper:#f7f0e5;--panel:#f7f0e5;--signal:#c76f52;--display:"Iowan Old Style"/);
 console.log("Editorial Studio preview/export parity checks passed");
