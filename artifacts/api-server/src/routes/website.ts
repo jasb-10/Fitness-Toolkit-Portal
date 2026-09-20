@@ -197,7 +197,22 @@ router.patch("/website-projects/:projectId", async (req, res: Response) => {
     if (!style.copy || !Array.isArray(sections) || sections.length === 0) {
       return res.status(422).json({ error: "A generated website draft is required before approval" });
     }
-    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
+    const [profile] = await db.select().from(businessProfilesTable)
+      .where(eq(businessProfilesTable.userId, userId)).limit(1);
+    const validationFacts = {
+      ...(profile ? {
+        businessName: profile.businessName,
+        businessType: profile.niche,
+        location: profile.location,
+        mainService: profile.service,
+        audience: profile.audience,
+        goal: profile.conversionGoal,
+        bookingLink: profile.destinationUrl,
+        ...(profile.evidenceData ?? {}),
+      } : {}),
+      ...brief,
+    };
+    const validationIssues = validateGeneratedDraft(validationFacts as SiteBrief, {
       copy: style.copy,
       copyProvenance: style.copyProvenance,
       sections,
@@ -269,6 +284,20 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
   try {
     const [profile] = await db.select().from(businessProfilesTable)
       .where(eq(businessProfilesTable.userId, userId)).limit(1);
+    const profileFacts = profile ? {
+      businessName: profile.businessName,
+      businessType: profile.niche,
+      location: profile.location,
+      mainService: profile.service,
+      audience: profile.audience,
+      goal: profile.conversionGoal,
+      bookingLink: profile.destinationUrl,
+      ...(profile.evidenceData ?? {}),
+    } : {};
+    const sourceFacts = Object.fromEntries(Object.entries({
+      ...profileFacts,
+      ...project.briefData,
+    }).filter(([, value]) => value !== "" && value !== null && value !== undefined));
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
@@ -349,25 +378,16 @@ Transform rough notes into polished, specific visitor-facing copy. Do not simply
 Use primaryProblem, desiredOutcome, serviceDetails and objections to understand the buying decision, not as sentences to paste. Follow voiceStyle and learn the rhythm of voiceExamples without reproducing private names or details. Never use a word or phrase listed in wordsToAvoid.
 Make the hero immediately explain what is offered, for whom, and why it is relevant. Avoid vague headlines such as "Unlock your potential", generic motivation, AI clichés, em dashes, and the construction "not X, but Y". Use natural English appropriate to the customer's country when identifiable; otherwise use British English.
 The application has selected a complete-page composition and content length. Respect its visitor job and visual grammar. These control the narrative emphasis, not factual content. A compact result must feel intentionally complete rather than shortened.
-Create only the IDs selected in websiteBrief.sections, each at most once. Return useful services, approach, about and contact sections when selected. Return results only when genuine results or credentials are supplied, testimonial only when a real quote is supplied, and FAQ only when a real question and answer are supplied. Do not create filler to compensate for missing evidence.
+Create only the IDs selected in sourceFacts.sections, each at most once. Return useful services, approach, about and contact sections when selected. Return results only when genuine results or credentials are supplied, testimonial only when a real quote is supplied, and FAQ only when a real question and answer are supplied. Do not create filler to compensate for missing evidence.
 For each section, choose an eyebrow of 2–5 words and a layout: editorial for calm explanatory copy, split for a practical offer or process, statement for one strong point. Vary layouts purposefully rather than repeating one. Write one clear title and a substantive body suited to the section, typically 35–80 words except for exact quotes or brief contact copy.
 For services and approach, add up to three concise highlights only when the brief contains distinct real service features or actual process steps. A highlight is a specific visitor-facing phrase, not a generic benefit or invented promise. Use an empty highlights array for other sections or when the evidence is insufficient.
 For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination.
-Every copy field and section must include provenance. sourceFields must name only keys that actually contributed factual information. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
+Every copy field and section must include provenance. sourceFields must contain only exact top-level key names from sourceFacts that actually contributed factual information. Do not add prefixes such as sourceFacts., websiteBrief. or businessProfile. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
         },
         {
           role: "user",
           content: JSON.stringify({
-            businessProfile: profile ? {
-              businessName: profile.businessName,
-              niche: profile.niche,
-              location: profile.location,
-              service: profile.service,
-              audience: profile.audience,
-              conversionGoal: profile.conversionGoal,
-              evidence: profile.evidenceData,
-            } : null,
-            websiteBrief: Object.fromEntries(Object.entries(project.briefData).filter(([, value]) => value !== "" && value !== null && value !== undefined)),
+            sourceFacts,
             selectedStyle: project.styleData,
             generationPlan: selectedDirection,
           }),
@@ -424,7 +444,7 @@ Every copy field and section must include provenance. sourceFields must name onl
     // A customer can add or correct their booking destination in the editor.
     // It remains a hard approval/download requirement, but should not consume a
     // draft or prevent them from seeing the first generated website.
-    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
+    const validationIssues = validateGeneratedDraft(sourceFacts as SiteBrief, {
       copy: generated.copy,
       copyProvenance: generated.copyProvenance,
       sections: completeSections,
