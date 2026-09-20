@@ -453,7 +453,7 @@ Every copy field and section must include provenance. sourceFields must contain 
       req.log.warn({ projectId, validationIssues }, "Generated website draft failed delivery checks");
       const blockingSummary = validationIssues
         .filter((issue) => issue.severity === "error")
-        .map((issue) => `${issue.code}${issue.path ? ` (${issue.path})` : ""}`)
+        .map((issue) => `${issue.code}${issue.path ? ` (${issue.path})` : ""}: ${issue.message}`)
         .join(", ");
       throw new Error(`Website draft failed checks: ${blockingSummary || "unknown validation error"}`);
     }
