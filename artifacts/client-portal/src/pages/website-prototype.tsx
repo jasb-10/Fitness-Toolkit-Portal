@@ -564,9 +564,16 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
         current?.map((item) => item.id === generated.id ? generated : item)
       );
       setStage("editor");
-    } catch {
+    } catch (error) {
       setCopy(previousCopy);
-      setSavedLabel(hadDraft ? "New draft failed — your previous draft is still available" : "Generation failed — please try again");
+      const diagnosticReason = error && typeof error === "object" && "data" in error
+        ? (error as { data?: { diagnosticReason?: string } }).data?.diagnosticReason
+        : undefined;
+      setSavedLabel(diagnosticReason
+        ? `Generation failed: ${diagnosticReason}`
+        : hadDraft
+          ? "New draft failed — your previous draft is still available"
+          : "Generation failed — please try again");
       setStage(hadDraft ? "editor" : "direction");
       void qc.invalidateQueries({ queryKey: getListWebsiteProjectsQueryKey() });
     }
