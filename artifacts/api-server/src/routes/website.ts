@@ -431,7 +431,11 @@ Every copy field and section must include provenance. sourceFields must name onl
     }).filter((issue) => issue.code !== "invalid-destination");
     if (hasBlockingIssues(validationIssues)) {
       req.log.warn({ projectId, validationIssues }, "Generated website draft failed delivery checks");
-      throw new Error("Website draft failed its factual or structural checks");
+      const blockingSummary = validationIssues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => `${issue.code}${issue.path ? ` (${issue.path})` : ""}`)
+        .join(", ");
+      throw new Error(`Website draft failed checks: ${blockingSummary || "unknown validation error"}`);
     }
 
     const completedAt = new Date();
