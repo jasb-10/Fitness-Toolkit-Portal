@@ -433,6 +433,8 @@ Every copy field and section must include provenance. sourceFields must contain 
       if (section.id === "results" && !(brief.credentials || brief.results)) return false;
       if (section.id === "testimonial" && !brief.testimonialQuote) return false;
       if (section.id === "faq" && !(brief.faqQuestion && brief.faqAnswer)) return false;
+      const bodyWords = section.body.trim().split(/\s+/).filter(Boolean).length;
+      if (["results", "testimonial", "faq"].includes(section.id) && bodyWords < 4) return false;
       seenIds.add(section.id);
       return true;
     });
