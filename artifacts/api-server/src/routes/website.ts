@@ -460,6 +460,7 @@ Every copy field and section must include provenance. sourceFields must name onl
     return res.json(serializeProject(updated));
   } catch (error) {
     req.log.error({ err: error, projectId }, "Website generation failed");
+    const diagnosticReason = error instanceof Error ? error.message : "Unknown generation error";
     const recoverableDraft = ["draft_ready", "approved"].includes(project.status) && project.sections.length > 0;
     await db.update(websiteProjectsTable).set({
       status: recoverableDraft ? project.status : "generation_failed",
@@ -467,7 +468,10 @@ Every copy field and section must include provenance. sourceFields must name onl
       progressData: [{ step: "generation", status: "failed", startedAt: startedAt.toISOString() }],
       updatedAt: new Date(),
     }).where(eq(websiteProjectsTable.id, projectId));
-    return res.status(502).json({ error: "Website generation failed. Please try again." });
+    return res.status(502).json({
+      error: "Website generation failed. Please try again.",
+      ...(isStaffRole(userRole) ? { diagnosticReason } : {}),
+    });
   }
 });
 
