@@ -61,8 +61,9 @@ export function validateGeneratedDraft(brief: SiteBrief, draft: GeneratedDraft):
     if (words(section.title) < 2 || words(section.body) < minimumBodyWords) {
       issues.push({ code: "thin-section", severity: "error", message: `The ${section.id} section does not have enough real content.`, path: `sections.${index}` });
     }
-    if (section.provenance && section.provenance.sourceFields.some((field) => !sourceFieldWasSupplied(brief, field))) {
-      issues.push({ code: "missing-source", severity: "error", message: `The ${section.id} section cites a source that was not supplied.`, path: `sections.${index}.provenance` });
+    const missingSourceFields = section.provenance?.sourceFields.filter((field) => !sourceFieldWasSupplied(brief, field)) ?? [];
+    if (missingSourceFields.length > 0) {
+      issues.push({ code: "missing-source", severity: "error", message: `The ${section.id} section cites unavailable source fields: ${missingSourceFields.join(", ")}.`, path: `sections.${index}.provenance` });
     }
   }
 
