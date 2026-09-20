@@ -32,6 +32,12 @@ function suppliedText(brief: SiteBrief, fields: readonly string[]) {
   return fields.map((field) => brief[field]).filter((value): value is string => typeof value === "string").join(" ");
 }
 
+function sourceFieldWasSupplied(brief: SiteBrief, field: string) {
+  const normalized = field.replace(/^(?:sourceFacts|websiteBrief|businessProfile)\./, "");
+  const value = brief[normalized];
+  return value !== undefined && value !== null && value !== "";
+}
+
 export function validateGeneratedDraft(brief: SiteBrief, draft: GeneratedDraft): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const content = allText(draft);
@@ -51,10 +57,11 @@ export function validateGeneratedDraft(brief: SiteBrief, draft: GeneratedDraft):
   for (const [index, section] of draft.sections.entries()) {
     if (seen.has(section.id)) issues.push({ code: "duplicate-section", severity: "error", message: `The ${section.id} section appears more than once.`, path: `sections.${index}` });
     seen.add(section.id);
-    if (words(section.title) < 2 || words(section.body) < 12) {
+    const minimumBodyWords = ["testimonial", "contact"].includes(section.id) ? 4 : 12;
+    if (words(section.title) < 2 || words(section.body) < minimumBodyWords) {
       issues.push({ code: "thin-section", severity: "error", message: `The ${section.id} section does not have enough real content.`, path: `sections.${index}` });
     }
-    if (section.provenance && section.provenance.sourceFields.some((field) => !brief[field])) {
+    if (section.provenance && section.provenance.sourceFields.some((field) => !sourceFieldWasSupplied(brief, field))) {
       issues.push({ code: "missing-source", severity: "error", message: `The ${section.id} section cites a source that was not supplied.`, path: `sections.${index}.provenance` });
     }
   }
