@@ -1,0 +1,1666 @@
+From 671e9b0f6d098aa5c472eb9994e708fda6772441 Mon Sep 17 00:00:00 2001
+From: jasb-10 <jbahra10@gmail.com>
+Date: Sat, 19 Sep 2026 17:41:58 +0100
+Subject: [PATCH] Build constraint-based website generator foundation
+
+---
+ WEBSITE_GENERATOR_SPEC.md                     | 211 ++++++++++++++++++
+ .../src/lib/site-generator/catalog.ts         | 109 +++++++++
+ .../src/lib/site-generator/engine.ts          | 109 +++++++++
+ .../src/lib/site-generator/index.ts           |   4 +
+ .../src/lib/site-generator/types.ts           | 125 +++++++++++
+ .../src/lib/site-generator/validator.ts       |  91 ++++++++
+ artifacts/api-server/src/routes/website.ts    | 132 +++++++++--
+ .../components/website/GuidedPersonalSite.tsx | 126 +++++++++++
+ .../src/pages/website-prototype.tsx           | 186 ++++++++++++---
+ lib/api-spec/openapi.yaml                     |  38 ++++
+ scripts/site-generator-smoke.ts               | 108 +++++++++
+ 11 files changed, 1193 insertions(+), 46 deletions(-)
+ create mode 100644 WEBSITE_GENERATOR_SPEC.md
+ create mode 100644 artifacts/api-server/src/lib/site-generator/catalog.ts
+ create mode 100644 artifacts/api-server/src/lib/site-generator/engine.ts
+ create mode 100644 artifacts/api-server/src/lib/site-generator/index.ts
+ create mode 100644 artifacts/api-server/src/lib/site-generator/types.ts
+ create mode 100644 artifacts/api-server/src/lib/site-generator/validator.ts
+ create mode 100644 artifacts/client-portal/src/components/website/GuidedPersonalSite.tsx
+ create mode 100644 scripts/site-generator-smoke.ts
+
+diff --git a/WEBSITE_GENERATOR_SPEC.md b/WEBSITE_GENERATOR_SPEC.md
+new file mode 100644
+index 0000000..f928140
+--- /dev/null
++++ b/WEBSITE_GENERATOR_SPEC.md
+@@ -0,0 +1,211 @@
++# Fitness Toolkit website generator: production specification
++
++## Product boundary
++
++The core purchase creates one complete, responsive, single-page website. It is a
++finished page with navigation, conversion path, SEO metadata, mobile behaviour,
++customer-approved copy and portable assets. It is not hosting and it is not a
++subscription.
++
++The Extra Pages entitlement expands the approved single page into a connected
++multi-page website. The homepage remains useful by itself. Extra Pages may add
++up to four pages from About, Services or Classes, Contact or Location, and one
++business-specific page. Dedicated location pages belong to Extra Pages because
++multi-location is an information architecture change, not a colour or layout
++choice.
++
++## Non-negotiable generation model
++
++The language model never writes the website code. It returns one compact,
++validated JSON content plan. The application selects an eligible composition,
++renders trusted components, packages the assets and validates the result.
++
++```
++customer truth
++  -> completeness and contradiction checks
++  -> eligible compositions
++  -> three visual directions
++  -> customer choice
++  -> structured copy generation
++  -> deterministic component renderer
++  -> delivery validator
++  -> customer review and targeted edits
++  -> approval and download
++```
++
++Changing a palette, type direction, spacing, section order or image crop must
++not call AI. Manual edits must not call AI. A targeted rewrite calls AI once for
++the selected field. A complete alternative draft consumes the second included
++generation.
++
++## Modes
++
++Each result combines independent modes. These are not templates.
++
++### Content length
++
++- Compact: four or five purposeful sections for a thin brief.
++- Standard: six to eight sections for a normal local business.
++- Expanded: nine to twelve sections only when the customer supplied enough
++  real services, proof, questions, images or schedule information.
++
++### Assets
++
++- Image-light: typography, colour, rules, cards and diagrams carry the design.
++- Image-led: one to three usable customer images.
++- Image-rich: a genuine image library with enough variety for galleries and
++  alternating editorial modules.
++
++### Business scale
++
++- Solo.
++- Team or single venue.
++- Multi-location overview. Dedicated location pages require Extra Pages.
++
++### Conversion route
++
++- Book or enquire.
++- Join or fill a class.
++- Apply for coaching.
++- Buy a defined programme.
++- Join a waitlist.
++- Establish professional credibility with a clear contact route.
++
++## Constraint-based composition selection
++
++Every composition declares its required facts and assets. A composition is not
++shown when the customer cannot fill it honestly.
++
++Examples:
++
++- A direct-purchase campaign needs a real programme, price, start date and
++  purchase destination.
++- A waitlist campaign needs the programme and waitlist destination, but does
++  not need a public price.
++- An image-rich editorial composition needs at least four usable photographs.
++- A documentary performance composition needs a genuine coach or venue image.
++- A live-capacity schedule needs a real integration. Without one, the system
++  may show a clearly static schedule only.
++- A precision or clinical composition may show credentials and measured
++  results only when the source fields exist.
++
++Selection is scored only after eligibility. Niche, audience, conversion route,
++business scale, asset quality and stated visual preferences determine rank.
++The user sees three genuinely different eligible directions. A direction
++changes the whole page grammar, not only the hero.
++
++## Intake
++
++The intake is staged and conditional so it can be thorough without showing one
++enormous form.
++
++1. Business: name, business type, country or locale, location, delivery model,
++   team size and number of locations.
++2. Customer and offer: ideal customer, main service, real service options,
++   differentiator and primary action.
++3. Operational detail: booking destination, schedule or programme details,
++   prices only if the customer wants them displayed, contact details and opening
++   hours when relevant.
++4. Proof: approved testimonials, qualifications, attributable results and
++   transformation images with consent.
++5. Assets: logo, photographs, existing website, brand colours and image rights.
++6. Taste: two useful preference choices plus an optional reference URL. The
++   customer chooses among eligible compositions after this, so taste never
++   overrides missing content.
++
++Thin answers trigger a compact composition or follow-up questions. They never
++create a long empty page. Contradictory answers block generation and present a
++plain-language choice. Unsupported claims are omitted.
++
++## Content provenance
++
++Every factual generated block records:
++
++- the source intake field or fields;
++- the claim type;
++- whether it is customer verified;
++- whether exact wording must be preserved.
++
++The model can improve structure and wording. It cannot introduce a location,
++price, date, capacity, qualification, testimonial, statistic, result,
++guarantee or scarcity claim that is not traceable to supplied data.
++
++## Included usage
++
++The recommended allowance for the core purchase is:
++
++- one complete content generation;
++- three no-cost eligible design previews;
++- one alternative eligible composition;
++- five targeted assisted copy edits;
++- unlimited manual edits and no-cost design controls;
++- no generated photography by default.
++
++The current application allowance may remain temporarily higher while the
++vertical slice is tested. The durable limit must be enforced by the server, not
++the browser. A customer-supplied API key can be an advanced later option, not a
++requirement for ordinary buyers.
++
++## Image rules
++
++The portal classifies uploaded assets by orientation and intended role. The
++customer confirms usage rights. It never silently places a poor portrait in a
++wide hero crop.
++
++- Zero useful images selects an image-light composition.
++- One useful image can support a hero or an about block, not a gallery.
++- Four or more varied images can unlock image-rich compositions.
++- AI image generation is optional, clearly labelled, and never fabricates the
++  customer's body, facilities, clients, transformations or credentials.
++- Uploaded client images require the customer's confirmation that publication
++  consent exists.
++
++## Delivery validator
++
++Approval and download are blocked when any hard failure exists:
++
++- placeholder text or generator commentary;
++- an unsupported factual claim or number;
++- a required section below its content minimum;
++- a dead, fake or unsafe action;
++- a fake form, schedule capacity or booking control;
++- missing contact destination;
++- more or fewer than one H1;
++- invalid locale, canonical, Open Graph or structured data;
++- missing content-image alt text;
++- horizontal overflow at 390 pixels;
++- missing focus states or inadequate body-text contrast;
++- an image-rich result without enough approved images.
++
++Warnings do not block delivery. They cover generic copy, weak images, repetitive
++sections, overlong prose, visual imbalance and optional missing proof.
++
++## Adversarial acceptance set
++
++The generator is not accepted because it succeeds on polished demo briefs. It
++must be exercised against at least 100 cases distributed across solo trainers,
++online coaches, yoga and Pilates, group classes, premium wellness, performance,
++small gyms, specialist audiences and multi-location operators in the UK, US,
++Canada, Australia and New Zealand.
++
++The cases deliberately include no assets, poor assets, one useful image, large
++libraries, thin answers, contradictory answers, risky claims, unusual niches,
++long business names, long locations, missing prices and picky visual choices.
++
++Launch criteria are zero embarrassing failures: no fabrication, empty modules,
++meta-commentary, broken mobile layout, fake controls or unsafe links. Some
++outputs may be less inspired than others; none may be misleading or broken.
++
++## Build sequence
++
++1. Implement the shared intake schema, composition catalogue, eligibility
++   engine and validator.
++2. Complete one vertical slice using the guided personal composition in compact
++   and standard modes, including preview, generation, editing, approval and
++   download.
++3. Run adversarial cases and correct the mechanism rather than patching a single
++   example.
++4. Add the remaining visual families one at a time behind the same schema and
++   validator.
++5. Add the Extra Pages renderer only after the one-page path is reliable.
++
+diff --git a/artifacts/api-server/src/lib/site-generator/catalog.ts b/artifacts/api-server/src/lib/site-generator/catalog.ts
+new file mode 100644
+index 0000000..b42ae51
+--- /dev/null
++++ b/artifacts/api-server/src/lib/site-generator/catalog.ts
+@@ -0,0 +1,109 @@
++import type { CompositionDefinition } from "./types";
++
++const core = [
++  { field: "businessName", message: "Add the business name." },
++  { field: "mainService", message: "Describe the main service." },
++  { field: "audience", message: "Describe the ideal customer." },
++  { field: "goal", message: "Choose the website's main action." },
++  { field: "bookingLink", message: "Add a real booking or contact destination." },
++] as const;
++
++export const compositions: CompositionDefinition[] = [
++  {
++    id: "guided-personal",
++    name: "Guided personal",
++    description: "Warm, high-trust storytelling for a person-led coaching business.",
++    visitorJob: "Decide whether this coach understands me and take a comfortable first step.",
++    visualGrammar: "Warm editorial rhythm, human introduction, guided steps and one calm action.",
++    preferredFor: [/personal trainer/i, /coach/i, /prenatal/i, /older/i, /rehab/i, /wellness/i],
++    supportedRoutes: ["book", "apply", "credibility"],
++    supportedAssets: ["image-light", "image-led", "image-rich"],
++    required: [...core],
++    recommendedFields: ["differentiator", "process", "credentials", "testimonialQuote"],
++  },
++  {
++    id: "editorial-studio",
++    name: "Editorial studio",
++    description: "Quiet, spacious and image-aware for movement and wellbeing studios.",
++    visitorJob: "Understand the atmosphere, classes and easiest way to visit.",
++    visualGrammar: "Editorial type, generous space, tactile colour and alternating image moments.",
++    preferredFor: [/pilates/i, /yoga/i, /barre/i, /movement/i, /studio/i],
++    supportedRoutes: ["book", "class", "credibility"],
++    supportedAssets: ["image-light", "image-led", "image-rich"],
++    required: [...core],
++    recommendedFields: ["schedule", "prices", "testimonialQuote", "location"],
++  },
++  {
++    id: "digital-momentum",
++    name: "Digital momentum",
++    description: "A crisp product-led journey for online coaching and programmes.",
++    visitorJob: "See how the programme works and decide whether to apply or join.",
++    visualGrammar: "Structured programme map, interface-like panels and strong informational hierarchy.",
++    preferredFor: [/online/i, /remote/i, /programme/i, /nutrition/i],
++    supportedRoutes: ["apply", "purchase", "waitlist"],
++    supportedAssets: ["image-light", "image-led"],
++    required: [...core],
++    recommendedFields: ["process", "prices", "results", "faqQuestion"],
++  },
++  {
++    id: "documentary-performance",
++    name: "Documentary performance",
++    description: "Direct, photographic and credible for serious training environments.",
++    visitorJob: "Judge the coaching standard and book the right performance service.",
++    visualGrammar: "Documentary photography, restrained colour, performance detail and proof-led modules.",
++    preferredFor: [/strength/i, /performance/i, /boxing/i, /martial/i, /conditioning/i],
++    supportedRoutes: ["book", "apply", "credibility"],
++    supportedAssets: ["image-led", "image-rich"],
++    required: [...core, { minimumAssets: 1, message: "Add one usable coach, client or venue photograph." }],
++    recommendedFields: ["credentials", "results", "process"],
++  },
++  {
++    id: "precision-practice",
++    name: "Precision practice",
++    description: "Measured and reassuring for specialist or evidence-led services.",
++    visitorJob: "Understand the assessment method and verify professional credibility.",
++    visualGrammar: "Clinical clarity, measured diagrams, precise spacing and sourced proof.",
++    preferredFor: [/physio/i, /rehab/i, /clinical/i, /specialist/i, /sports therapy/i],
++    supportedRoutes: ["book", "credibility"],
++    supportedAssets: ["image-light", "image-led"],
++    required: [...core, { field: "credentials", message: "Add the professional credentials that may be displayed." }],
++    recommendedFields: ["results", "process", "faqQuestion"],
++  },
++  {
++    id: "community-schedule",
++    name: "Community schedule",
++    description: "Schedule-first and welcoming for class-led businesses.",
++    visitorJob: "Find the right session quickly and know how to join.",
++    visualGrammar: "Visible timetable, community cues, practical cards and repeated joining actions.",
++    preferredFor: [/group/i, /bootcamp/i, /club/i, /community/i, /studio/i, /gym/i],
++    supportedRoutes: ["class", "book"],
++    supportedAssets: ["image-light", "image-led", "image-rich"],
++    required: [...core, { field: "schedule", message: "Add the real class or session schedule." }],
++    recommendedFields: ["prices", "testimonialQuote", "location"],
++  },
++  {
++    id: "private-catalogue",
++    name: "Private catalogue",
++    description: "Quiet luxury for premium private training and wellness.",
++    visitorJob: "Compare a small number of premium services and make a private enquiry.",
++    visualGrammar: "Typographic restraint, service catalogue, discreet proof and premium whitespace.",
++    preferredFor: [/private/i, /premium/i, /luxury/i, /executive/i, /concierge/i, /wellness/i],
++    supportedRoutes: ["book", "apply", "credibility"],
++    supportedAssets: ["image-light", "image-led"],
++    required: [...core, { field: "offer", message: "Describe the premium service or first invitation." }],
++    recommendedFields: ["prices", "credentials", "differentiator"],
++  },
++  {
++    id: "campaign-launch",
++    name: "Campaign launch",
++    description: "Focused conversion page for a defined programme, intake or event.",
++    visitorJob: "Understand the offer, timing and next step without distraction.",
++    visualGrammar: "Single-offer narrative, programme breakdown, deadline context and repeated action.",
++    preferredFor: [/challenge/i, /programme/i, /course/i, /intake/i, /event/i],
++    supportedRoutes: ["purchase", "waitlist", "apply"],
++    supportedAssets: ["image-light", "image-led"],
++    required: [...core, { field: "offer", message: "Name the programme or campaign." }],
++    recommendedFields: ["programmeStart", "programmeCapacity", "prices", "faqQuestion"],
++  },
++];
++
+diff --git a/artifacts/api-server/src/lib/site-generator/engine.ts b/artifacts/api-server/src/lib/site-generator/engine.ts
+new file mode 100644
+index 0000000..e252706
+--- /dev/null
++++ b/artifacts/api-server/src/lib/site-generator/engine.ts
+@@ -0,0 +1,109 @@
++import { compositions } from "./catalog";
++import type {
++  AssetMode,
++  ConversionRoute,
++  Direction,
++  GeneratorContext,
++  LengthMode,
++  ScaleMode,
++  SiteBrief,
++} from "./types";
++
++const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
++
++export function conversionRoute(brief: SiteBrief): ConversionRoute {
++  const value = `${text(brief.goal)} ${text(brief.offer)}`.toLowerCase();
++  if (/class|session|space|join/.test(value)) return "class";
++  if (/buy|purchase|checkout|sell/.test(value)) return "purchase";
++  if (/waitlist|waiting list/.test(value)) return "waitlist";
++  if (/apply|application/.test(value)) return "apply";
++  if (/credib|portfolio|professional/.test(value)) return "credibility";
++  return "book";
++}
++
++export function scaleMode(brief: SiteBrief): ScaleMode {
++  const count = Number(brief.locationCount || 1);
++  const value = `${text(brief.businessScale)} ${text(brief.businessType)}`.toLowerCase();
++  if (count > 1 || /multi.?location|multiple locations|branches/.test(value)) return "multi-location";
++  if (/team|studio|gym|clinic|practice/.test(value)) return "team";
++  return "solo";
++}
++
++export function assetMode(context: GeneratorContext): AssetMode {
++  const preference = text(context.brief.imagePreference).toLowerCase();
++  if (preference.includes("light") || context.usableImageCount === 0) return "image-light";
++  if (preference.includes("rich") && context.usableImageCount >= 4) return "image-rich";
++  if (context.usableImageCount >= 4) return "image-rich";
++  return "image-led";
++}
++
++export function lengthMode(brief: SiteBrief): LengthMode {
++  const explicit = text(brief.contentLength).toLowerCase();
++  if (["compact", "standard", "expanded"].includes(explicit)) return explicit as LengthMode;
++  const substantive = [
++    brief.offer, brief.differentiator, brief.credentials, brief.results,
++    brief.testimonialQuote, brief.process, brief.faqQuestion, brief.faqAnswer,
++    brief.schedule, brief.prices,
++  ].filter((value) => text(value).length >= 18).length;
++  if (substantive <= 2) return "compact";
++  if (substantive >= 7) return "expanded";
++  return "standard";
++}
++
++function unmetRequirements(context: GeneratorContext, index: number) {
++  const definition = compositions[index];
++  return definition.required.filter((requirement) => {
++    if (requirement.minimumAssets !== undefined) return context.usableImageCount < requirement.minimumAssets;
++    return requirement.field ? !text(context.brief[requirement.field]) : false;
++  });
++}
++
++export function analyseDirections(context: GeneratorContext): {
++  directions: Direction[];
++  globalBlocks: string[];
++} {
++  const brief = context.brief;
++  const route = conversionRoute(brief);
++  const assets = assetMode(context);
++  const length = lengthMode(brief);
++  const scale = scaleMode(brief);
++  const haystack = `${text(brief.businessType)} ${text(brief.mainService)} ${text(brief.offer)} ${text(brief.audience)}`;
++  const globalBlocks = compositions[0].required
++    .filter((item) => item.field && !text(brief[item.field]))
++    .map((item) => item.message);
++
++  const ranked = compositions.flatMap((definition, index) => {
++    const unmet = unmetRequirements(context, index);
++    if (unmet.length || !definition.supportedRoutes.includes(route) || !definition.supportedAssets.includes(assets)) return [];
++    let score = 20;
++    score += definition.preferredFor.reduce((total, pattern) => total + (pattern.test(haystack) ? 18 : 0), 0);
++    score += definition.recommendedFields.reduce((total, field) => total + (text(brief[field]) ? 2 : 0), 0);
++    if (definition.id === "guided-personal" && scale === "solo") score += 8;
++    if (definition.id === "community-schedule" && route === "class") score += 12;
++    if (definition.id === "digital-momentum" && /online|remote/i.test(haystack)) score += 12;
++    if (definition.id === "campaign-launch" && ["purchase", "waitlist"].includes(route)) score += 12;
++    if (definition.id === "editorial-studio" && assets === "image-rich") score += 6;
++    const warnings: string[] = [];
++    if (length === "compact") warnings.push("A shorter complete page is recommended from the information supplied.");
++    if (scale === "multi-location") warnings.push("The core page can show an overview; dedicated location pages require Extra Pages.");
++    if (assets === "image-light") warnings.push("This direction will use typography and layout instead of relying on photography.");
++    return [{
++      id: definition.id,
++      name: definition.name,
++      description: definition.description,
++      visitorJob: definition.visitorJob,
++      visualGrammar: definition.visualGrammar,
++      score,
++      lengthMode: length,
++      assetMode: assets,
++      scaleMode: scale,
++      warnings,
++    } satisfies Direction];
++  }).sort((a, b) => b.score - a.score);
++
++  // Keep the three strongest eligible directions. If a very thin brief only
++  // supports one or two, the UI explains what is missing rather than showing a
++  // knowingly unsuitable design.
++  return { directions: ranked.slice(0, 3), globalBlocks };
++}
++
+diff --git a/artifacts/api-server/src/lib/site-generator/index.ts b/artifacts/api-server/src/lib/site-generator/index.ts
+new file mode 100644
+index 0000000..05d894f
+--- /dev/null
++++ b/artifacts/api-server/src/lib/site-generator/index.ts
+@@ -0,0 +1,4 @@
++export * from "./types";
++export * from "./catalog";
++export * from "./engine";
++export * from "./validator";
+diff --git a/artifacts/api-server/src/lib/site-generator/types.ts b/artifacts/api-server/src/lib/site-generator/types.ts
+new file mode 100644
+index 0000000..a41b74c
+--- /dev/null
++++ b/artifacts/api-server/src/lib/site-generator/types.ts
+@@ -0,0 +1,125 @@
++export type LengthMode = "compact" | "standard" | "expanded";
++export type AssetMode = "image-light" | "image-led" | "image-rich";
++export type ScaleMode = "solo" | "team" | "multi-location";
++export type ConversionRoute =
++  | "book"
++  | "class"
++  | "apply"
++  | "purchase"
++  | "waitlist"
++  | "credibility";
++
++export type CompositionId =
++  | "guided-personal"
++  | "editorial-studio"
++  | "digital-momentum"
++  | "documentary-performance"
++  | "precision-practice"
++  | "community-schedule"
++  | "private-catalogue"
++  | "campaign-launch";
++
++export type SiteBrief = Record<string, unknown> & {
++  businessName?: string;
++  businessType?: string;
++  mainService?: string;
++  audience?: string;
++  location?: string;
++  country?: string;
++  deliveryMode?: string;
++  businessScale?: string;
++  locationCount?: string | number;
++  goal?: string;
++  bookingLink?: string;
++  offer?: string;
++  differentiator?: string;
++  credentials?: string;
++  results?: string;
++  testimonialQuote?: string;
++  testimonialName?: string;
++  process?: string;
++  faqQuestion?: string;
++  faqAnswer?: string;
++  schedule?: string;
++  prices?: string;
++  programmeStart?: string;
++  programmeCapacity?: string;
++  sections?: unknown[];
++  contentLength?: string;
++  imagePreference?: string;
++};
++
++export type GeneratorContext = {
++  brief: SiteBrief;
++  assetCount: number;
++  usableImageCount: number;
++};
++
++export type Requirement = {
++  field?: keyof SiteBrief;
++  minimumAssets?: number;
++  message: string;
++};
++
++export type CompositionDefinition = {
++  id: CompositionId;
++  name: string;
++  description: string;
++  visitorJob: string;
++  visualGrammar: string;
++  preferredFor: RegExp[];
++  avoidedFor?: RegExp[];
++  supportedRoutes: ConversionRoute[];
++  supportedAssets: AssetMode[];
++  required: Requirement[];
++  recommendedFields: Array<keyof SiteBrief>;
++};
++
++export type Direction = {
++  id: CompositionId;
++  name: string;
++  description: string;
++  visitorJob: string;
++  visualGrammar: string;
++  score: number;
++  lengthMode: LengthMode;
++  assetMode: AssetMode;
++  scaleMode: ScaleMode;
++  warnings: string[];
++};
++
++export type ValidationIssue = {
++  code: string;
++  severity: "error" | "warning";
++  message: string;
++  path?: string;
++};
++
++export type Provenance = {
++  sourceFields: string[];
++  claimType: "offer" | "audience" | "location" | "credential" | "result" | "testimonial" | "price" | "date" | "capacity" | "general";
++  verified: boolean;
++  exact?: boolean;
++};
++
++export type GeneratedSection = {
++  id: string;
++  eyebrow: string;
++  title: string;
++  body: string;
++  layout: "editorial" | "split" | "statement";
++  highlights: string[];
++  provenance?: Provenance;
++};
++
++export type GeneratedDraft = {
++  copy: {
++    headline: string;
++    subheadline: string;
++    about: string;
++    button: string;
++  };
++  copyProvenance?: Record<string, Provenance>;
++  sections: GeneratedSection[];
++};
++
+diff --git a/artifacts/api-server/src/lib/site-generator/validator.ts b/artifacts/api-server/src/lib/site-generator/validator.ts
+new file mode 100644
+index 0000000..6f5ebf3
+--- /dev/null
++++ b/artifacts/api-server/src/lib/site-generator/validator.ts
+@@ -0,0 +1,91 @@
++import type { GeneratedDraft, SiteBrief, ValidationIssue } from "./types";
++
++const forbidden = [
++  /lorem ipsum/i,
++  /illustrative only/i,
++  /a live site would/i,
++  /the generator/i,
++  /when (?:the )?customer supplies/i,
++  /reusable module/i,
++  /placeholder/i,
++  /insert (?:text|image|copy)/i,
++];
++
++const factualClaimPatterns = [
++  { type: "price", pattern: /(?:£|\$|€)\s?\d|\d+\s?(?:pounds?|dollars?|euros?)/i, fields: ["prices"] },
++  { type: "capacity", pattern: /\b(?:only|limited to|capacity of)\s+\d+|\d+\s+(?:places|spaces|spots)\b/i, fields: ["programmeCapacity", "bannerText"] },
++  { type: "result", pattern: /\b\d+\s?%|\b\d+\+?\s+(?:clients?|members?|years?)\b/i, fields: ["results", "credentials"] },
++] as const;
++
++function words(value: string) {
++  return value.trim().split(/\s+/).filter(Boolean).length;
++}
++
++function allText(draft: GeneratedDraft) {
++  return [
++    draft.copy.headline, draft.copy.subheadline, draft.copy.about, draft.copy.button,
++    ...draft.sections.flatMap((section) => [section.eyebrow, section.title, section.body, ...section.highlights]),
++  ].join("\n");
++}
++
++function suppliedText(brief: SiteBrief, fields: readonly string[]) {
++  return fields.map((field) => brief[field]).filter((value): value is string => typeof value === "string").join(" ");
++}
++
++export function validateGeneratedDraft(brief: SiteBrief, draft: GeneratedDraft): ValidationIssue[] {
++  const issues: ValidationIssue[] = [];
++  const content = allText(draft);
++
++  for (const pattern of forbidden) {
++    if (pattern.test(content)) issues.push({ code: "meta-copy", severity: "error", message: "Generator or placeholder commentary is present in customer copy." });
++  }
++
++  if (words(draft.copy.headline) < 3 || words(draft.copy.headline) > 14) {
++    issues.push({ code: "headline-length", severity: "warning", message: "The headline should normally contain 3 to 14 words.", path: "copy.headline" });
++  }
++  if (words(draft.copy.subheadline) < 8) {
++    issues.push({ code: "thin-subheadline", severity: "warning", message: "The opening explanation is too thin to establish the offer and audience.", path: "copy.subheadline" });
++  }
++
++  const seen = new Set<string>();
++  for (const [index, section] of draft.sections.entries()) {
++    if (seen.has(section.id)) issues.push({ code: "duplicate-section", severity: "error", message: `The ${section.id} section appears more than once.`, path: `sections.${index}` });
++    seen.add(section.id);
++    if (words(section.title) < 2 || words(section.body) < 12) {
++      issues.push({ code: "thin-section", severity: "error", message: `The ${section.id} section does not have enough real content.`, path: `sections.${index}` });
++    }
++    if (section.provenance && section.provenance.sourceFields.some((field) => !brief[field])) {
++      issues.push({ code: "missing-source", severity: "error", message: `The ${section.id} section cites a source that was not supplied.`, path: `sections.${index}.provenance` });
++    }
++  }
++
++  for (const required of ["services", "about", "contact"]) {
++    const selected = Array.isArray(brief.sections) && brief.sections.includes(required);
++    if (selected && !seen.has(required)) issues.push({ code: "missing-section", severity: "error", message: `The selected ${required} section is missing.` });
++  }
++
++  for (const claim of factualClaimPatterns) {
++    const matches = content.match(new RegExp(claim.pattern.source, claim.pattern.flags.includes("g") ? claim.pattern.flags : `${claim.pattern.flags}g`)) || [];
++    const source = suppliedText(brief, claim.fields);
++    for (const match of matches) {
++      const number = match.match(/\d[\d,.]*/)?.[0];
++      if (number && !source.includes(number)) {
++        issues.push({ code: `unsupported-${claim.type}`, severity: "error", message: `The generated ${claim.type} claim “${match}” is not traceable to the intake.` });
++      }
++    }
++  }
++
++  if (!/^https?:\/\//i.test(String(brief.bookingLink || "")) && !/^(?:mailto:|tel:)/i.test(String(brief.bookingLink || ""))) {
++    issues.push({ code: "invalid-destination", severity: "error", message: "Add a valid booking, email or telephone destination." });
++  }
++  if (draft.sections.length >= 4) {
++    const starts = draft.sections.map((section) => section.title.trim().toLowerCase().split(/\s+/).slice(0, 2).join(" "));
++    if (new Set(starts).size < starts.length - 1) issues.push({ code: "repetitive-rhythm", severity: "warning", message: "Several section headings begin in the same way." });
++  }
++  return issues;
++}
++
++export function hasBlockingIssues(issues: ValidationIssue[]) {
++  return issues.some((issue) => issue.severity === "error");
++}
++
+diff --git a/artifacts/api-server/src/routes/website.ts b/artifacts/api-server/src/routes/website.ts
+index 8144076..92d3885 100644
+--- a/artifacts/api-server/src/routes/website.ts
++++ b/artifacts/api-server/src/routes/website.ts
+@@ -3,10 +3,17 @@ import { db, businessProfilesTable, websiteProjectsTable, projectAssetsTable } f
+ import { z } from "zod";
+ import { eq, and, desc, lt, ne, sql } from "drizzle-orm";
+ import { PRODUCT_CODES, requireAuth, requireProductEntitlement, type AuthedRequest } from "../middlewares/auth";
++import {
++  analyseDirections,
++  hasBlockingIssues,
++  validateGeneratedDraft,
++  type GeneratedDraft,
++  type SiteBrief,
++} from "../lib/site-generator";
+ 
+ const router: IRouter = Router();
+ const MAX_GENERATIONS = 2;
+-const MAX_REFINEMENTS = 10;
++const MAX_REFINEMENTS = 5;
+ router.use(requireAuth, requireProductEntitlement(PRODUCT_CODES.website));
+ const uuidParams = z.object({ projectId: z.string().uuid() });
+ const updateBusinessProfileBody = z.object({
+@@ -122,6 +129,20 @@ async function ownedProject(projectId: string, userId: string) {
+   return project;
+ }
+ 
++async function projectGeneratorContext(project: typeof websiteProjectsTable.$inferSelect, userId: string) {
++  const assets = await db.select({ id: projectAssetsTable.id, rightsStatus: projectAssetsTable.rightsStatus })
++    .from(projectAssetsTable)
++    .where(and(eq(projectAssetsTable.projectId, project.id), eq(projectAssetsTable.userId, userId)));
++  return {
++    brief: project.briefData as SiteBrief,
++    assetCount: assets.length,
++    // Uploaded images are usable only when the customer has positively
++    // confirmed their right to publish them. Pending assets do not unlock an
++    // image-dependent composition.
++    usableImageCount: assets.filter((asset) => ["owned", "customer_owned", "licensed", "approved", "confirmed"].includes(asset.rightsStatus.toLowerCase())).length,
++  };
++}
++
+ router.get("/website-projects/:projectId", async (req, res: Response) => {
+   const { userId } = req as unknown as AuthedRequest;
+   const { projectId } = uuidParams.parse(req.params);
+@@ -130,6 +151,15 @@ router.get("/website-projects/:projectId", async (req, res: Response) => {
+   return res.json(serializeProject(project));
+ });
+ 
++router.get("/website-projects/:projectId/directions", async (req, res: Response) => {
++  const { userId } = req as unknown as AuthedRequest;
++  const { projectId } = uuidParams.parse(req.params);
++  const project = await ownedProject(projectId, userId);
++  if (!project) return res.status(404).json({ error: "Website project not found" });
++  const analysis = analyseDirections(await projectGeneratorContext(project, userId));
++  return res.json(analysis);
++});
++
+ router.patch("/website-projects/:projectId", async (req, res: Response) => {
+   const { userId } = req as unknown as AuthedRequest;
+   const { projectId } = uuidParams.parse(req.params);
+@@ -152,14 +182,24 @@ router.patch("/website-projects/:projectId", async (req, res: Response) => {
+     if (!style.copy || !Array.isArray(sections) || sections.length === 0) {
+       return res.status(422).json({ error: "A generated website draft is required before approval" });
+     }
+-    const heroImage = style.heroImage;
+-    if (typeof heroImage !== "string" || !heroImage.startsWith("/api/storage/objects/")) {
+-      return res.status(422).json({ error: "Upload a photo you own or may use before approval" });
++    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
++      copy: style.copy,
++      copyProvenance: style.copyProvenance,
++      sections,
++    } as GeneratedDraft);
++    if (hasBlockingIssues(validationIssues)) {
++      return res.status(422).json({ error: "Resolve the website checks before approval", validationIssues });
++    }
++    if (style.assetMode !== "image-light") {
++      const heroImage = style.heroImage;
++      if (typeof heroImage !== "string" || !heroImage.startsWith("/api/storage/objects/")) {
++        return res.status(422).json({ error: "Upload a photo you own or may use before approval" });
++      }
++      const objectPath = heroImage.slice("/api/storage".length);
++      const [asset] = await db.select({ id: projectAssetsTable.id }).from(projectAssetsTable)
++        .where(and(eq(projectAssetsTable.projectId, projectId), eq(projectAssetsTable.userId, userId), eq(projectAssetsTable.objectPath, objectPath))).limit(1);
++      if (!asset) return res.status(422).json({ error: "The selected photo is not in this project" });
+     }
+-    const objectPath = heroImage.slice("/api/storage".length);
+-    const [asset] = await db.select({ id: projectAssetsTable.id }).from(projectAssetsTable)
+-      .where(and(eq(projectAssetsTable.projectId, projectId), eq(projectAssetsTable.userId, userId), eq(projectAssetsTable.objectPath, objectPath))).limit(1);
+-    if (!asset) return res.status(422).json({ error: "The selected photo is not in this project" });
+   }
+   const [updated] = await db.update(websiteProjectsTable).set({ ...body, updatedAt: new Date() })
+     .where(and(eq(websiteProjectsTable.id, projectId), eq(websiteProjectsTable.userId, userId), ne(websiteProjectsTable.status, "generating"))).returning();
+@@ -185,6 +225,17 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response)
+   const project = await ownedProject(projectId, userId);
+   if (!project) return res.status(404).json({ error: "Website project not found" });
+ 
++  const generatorContext = await projectGeneratorContext(project, userId);
++  const analysis = analyseDirections(generatorContext);
++  if (analysis.globalBlocks.length) {
++    return res.status(422).json({ error: "Complete the required website details first", missing: analysis.globalBlocks });
++  }
++  if (!analysis.directions.length) {
++    return res.status(422).json({ error: "The current brief does not yet support a complete website direction. Add more service detail or choose a different main action." });
++  }
++  const requestedComposition = typeof project.styleData.compositionId === "string" ? project.styleData.compositionId : "";
++  const selectedDirection = analysis.directions.find((item) => item.id === requestedComposition) || analysis.directions[0];
++
+   const startedAt = new Date();
+   const [reserved] = await db.update(websiteProjectsTable).set({
+     generationAttempts: sql`${websiteProjectsTable.generationAttempts} + 1`,
+@@ -201,7 +252,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response)
+     const { openai } = await import("@workspace/integrations-openai-ai-server");
+     const completion = await openai.chat.completions.create({
+       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
+-      max_completion_tokens: 4500,
++      max_completion_tokens: 2800,
+       response_format: {
+         type: "json_schema",
+         json_schema: {
+@@ -210,7 +261,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response)
+           schema: {
+             type: "object",
+             additionalProperties: false,
+-            required: ["copy", "sections"],
++            required: ["copy", "copyProvenance", "sections"],
+             properties: {
+               copy: {
+                 type: "object",
+@@ -223,12 +274,23 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response)
+                   button: { type: "string" },
+                 },
+               },
++              copyProvenance: {
++                type: "object",
++                additionalProperties: false,
++                required: ["headline", "subheadline", "about", "button"],
++                properties: {
++                  headline: { $ref: "#/$defs/provenance" },
++                  subheadline: { $ref: "#/$defs/provenance" },
++                  about: { $ref: "#/$defs/provenance" },
++                  button: { $ref: "#/$defs/provenance" },
++                },
++              },
+               sections: {
+                 type: "array",
+                 items: {
+                   type: "object",
+                   additionalProperties: false,
+-                  required: ["id", "eyebrow", "title", "body", "layout", "highlights"],
++                  required: ["id", "eyebrow", "title", "body", "layout", "highlights", "provenance"],
+                   properties: {
+                     id: { type: "string", enum: ["services", "approach", "about", "results", "testimonial", "faq", "contact"] },
+                     eyebrow: { type: "string" },
+@@ -236,10 +298,24 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response)
+                     body: { type: "string" },
+                     layout: { type: "string", enum: ["editorial", "split", "statement"] },
+                     highlights: { type: "array", items: { type: "string" } },
++                    provenance: { $ref: "#/$defs/provenance" },
+                   },
+                 },
+               },
+             },
++            $defs: {
++              provenance: {
++                type: "object",
++                additionalProperties: false,
++                required: ["sourceFields", "claimType", "verified", "exact"],
++                properties: {
++                  sourceFields: { type: "array", items: { type: "string" } },
++                  claimType: { type: "string", enum: ["offer", "audience", "location", "credential", "result", "testimonial", "price", "date", "capacity", "general"] },
++                  verified: { type: "boolean" },
++                  exact: { type: "boolean" },
++                },
++              },
++            },
+           },
+         },
+       },
+@@ -251,10 +327,12 @@ First infer the visitor's immediate question, the business's real differentiator
+ Use only facts supplied in the brief or business profile. Never invent qualifications, testimonials, results, prices, guarantees, scarcity, client numbers, availability, or locations. Never imply a claim is proven when it is only an aspiration.
+ Transform rough notes into polished, specific visitor-facing copy. Do not simply paste an intake answer as a section paragraph. If a supplied phrase is already strong, you may retain it; exact testimonials and their attribution must be preserved verbatim.
+ Make the hero immediately explain what is offered, for whom, and why it is relevant. Avoid vague headlines such as "Unlock your potential", generic motivation, AI clichés, em dashes, and the construction "not X, but Y". Use natural English appropriate to the customer's country when identifiable; otherwise use British English.
++The application has selected a complete-page composition and content length. Respect its visitor job and visual grammar. These control the narrative emphasis, not factual content. A compact result must feel intentionally complete rather than shortened.
+ Create only the IDs selected in websiteBrief.sections, each at most once. Return useful services, approach, about and contact sections when selected. Return results only when genuine results or credentials are supplied, testimonial only when a real quote is supplied, and FAQ only when a real question and answer are supplied. Do not create filler to compensate for missing evidence.
+ For each section, choose an eyebrow of 2–5 words and a layout: editorial for calm explanatory copy, split for a practical offer or process, statement for one strong point. Vary layouts purposefully rather than repeating one. Write one clear title and a substantive body suited to the section, typically 35–80 words except for exact quotes or brief contact copy.
+ For services and approach, add up to three concise highlights only when the brief contains distinct real service features or actual process steps. A highlight is a specific visitor-facing phrase, not a generic benefit or invented promise. Use an empty highlights array for other sections or when the evidence is insufficient.
+-For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination. Return JSON only.`,
++For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination.
++Every copy field and section must include provenance. sourceFields must name only keys that actually contributed factual information. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
+         },
+         {
+           role: "user",
+@@ -270,6 +348,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied
+             } : null,
+             websiteBrief: project.briefData,
+             selectedStyle: project.styleData,
++            generationPlan: selectedDirection,
+           }),
+         },
+       ],
+@@ -277,6 +356,12 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied
+ 
+     const content = completion.choices[0]?.message?.content;
+     if (!content) throw new Error("Website generator returned no content");
++    const provenance = z.object({
++      sourceFields: z.array(z.string()),
++      claimType: z.enum(["offer", "audience", "location", "credential", "result", "testimonial", "price", "date", "capacity", "general"]),
++      verified: z.boolean(),
++      exact: z.boolean(),
++    });
+     const generated = z.object({
+       copy: z.object({
+         headline: z.string().min(1),
+@@ -284,6 +369,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied
+         about: z.string().min(1),
+         button: z.string().min(1),
+       }),
++      copyProvenance: z.record(provenance),
+       sections: z.array(z.object({
+         id: z.string(),
+         eyebrow: z.string(),
+@@ -291,6 +377,7 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied
+         body: z.string(),
+         layout: z.enum(["editorial", "split", "statement"]),
+         highlights: z.array(z.string()).max(3),
++        provenance,
+       })),
+     }).parse(JSON.parse(content));
+ 
+@@ -313,11 +400,30 @@ For results, credentials and FAQs, do not strengthen or generalise the supplied
+       throw new Error("Website generator did not produce the required visitor journey");
+     }
+ 
++    const validationIssues = validateGeneratedDraft(brief as SiteBrief, {
++      copy: generated.copy,
++      copyProvenance: generated.copyProvenance,
++      sections: completeSections,
++    });
++    if (hasBlockingIssues(validationIssues)) {
++      req.log.warn({ projectId, validationIssues }, "Generated website draft failed delivery checks");
++      throw new Error("Website draft failed its factual or structural checks");
++    }
++
+     const completedAt = new Date();
+     const [updated] = await db.update(websiteProjectsTable).set({
+       status: "draft_ready",
+       currentStage: "editor",
+-      styleData: { ...project.styleData, copy: generated.copy },
++      styleData: {
++        ...project.styleData,
++        compositionId: selectedDirection.id,
++        lengthMode: selectedDirection.lengthMode,
++        assetMode: selectedDirection.assetMode,
++        scaleMode: selectedDirection.scaleMode,
++        copy: generated.copy,
++        copyProvenance: generated.copyProvenance,
++        validationIssues,
++      },
+       sections: completeSections,
+       progressData: [{
+         step: "generation",
+diff --git a/artifacts/client-portal/src/components/website/GuidedPersonalSite.tsx b/artifacts/client-portal/src/components/website/GuidedPersonalSite.tsx
+new file mode 100644
+index 0000000..3e74af8
+--- /dev/null
++++ b/artifacts/client-portal/src/components/website/GuidedPersonalSite.tsx
+@@ -0,0 +1,126 @@
++import { ArrowRight, MapPin } from "lucide-react";
++import { cn } from "@/lib/utils";
++
++type Copy = { headline: string; subheadline: string; about: string; button: string };
++type Section = { id: string; eyebrow?: string; title: string; body: string; highlights?: string[] };
++type Brief = {
++  businessName: string;
++  mainService: string;
++  audience: string;
++  location: string;
++  deliveryMode?: string;
++  offer: string;
++  credentials: string;
++  results: string;
++  testimonialQuote: string;
++  testimonialName: string;
++  process: string;
++  prices?: string;
++  faqQuestion: string;
++  faqAnswer: string;
++};
++
++type Props = {
++  brief: Brief;
++  copy: Copy;
++  sections: Section[];
++  heroImage: string;
++  useImage: boolean;
++  accent: string;
++  narrow: boolean;
++  editable?: boolean;
++  selectedPart?: string;
++  onSelect?: (part: "headline" | "subheadline" | "about" | "button") => void;
++  onReplaceImage?: () => void;
++};
++
++export function GuidedPersonalSite({ brief, copy, sections, heroImage, useImage, accent, narrow, editable = false, selectedPart, onSelect, onReplaceImage }: Props) {
++  const section = (id: string) => sections.find((item) => item.id === id);
++  const services = section("services");
++  const approach = section("approach");
++  const about = section("about");
++  const contact = section("contact");
++  const steps = approach?.highlights?.filter(Boolean) || brief.process.split(/\n|,|\.|;/).map((item) => item.trim()).filter((item) => item.length > 8).slice(0, 3);
++  const trust = [brief.credentials, brief.location ? `Based in ${brief.location}` : "", brief.deliveryMode].filter(Boolean).slice(0, 3);
++  const clickable = (part: "headline" | "subheadline" | "about" | "button") => cn(editable && "relative rounded-sm outline-none hover:ring-2 hover:ring-white/35", editable && selectedPart === part && "ring-2 ring-white/80");
++  const select = (part: "headline" | "subheadline" | "about" | "button") => editable && onSelect?.(part);
++
++  return <div className="overflow-hidden bg-[#f3ede3] text-[#211d19]" style={{ fontFamily: 'Newsreader, Georgia, "Times New Roman", serif' }}>
++    <header className="flex items-center justify-between bg-[#1d3026] px-7 py-5 text-[#fbf8f2] md:px-12"><div className="font-sans text-sm font-semibold tracking-tight">{brief.businessName || "Your business"}</div>{!narrow && <nav className="flex items-center gap-6 font-sans text-[11px]"><span>Work with me</span><span>About</span><span className="border-b pb-1" style={{ borderColor: accent }}>{copy.button}</span></nav>}</header>
++
++    <section className={cn("relative isolate flex overflow-hidden bg-[#1d3026] text-[#fbf8f2]", narrow ? "min-h-[650px] items-end" : "min-h-[680px] items-center")}>
++      {useImage && <button disabled={!editable} onClick={onReplaceImage} className="absolute inset-0 h-full w-full"><img src={heroImage} alt="" className="h-full w-full object-cover opacity-65" /></button>}
++      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(21,39,30,.96)_0%,rgba(21,39,30,.78)_45%,rgba(21,39,30,.12)_82%)]" />
++      {!useImage && <div className="absolute -right-20 top-10 h-[440px] w-[440px] rounded-full border border-white/10 bg-[radial-gradient(circle,rgba(224,188,169,.24),transparent_68%)]" />}
++      <div className={cn("relative z-10 w-full", narrow ? "px-7 pb-16 pt-28" : "max-w-[800px] px-14 py-24")}>
++        <div className="font-sans text-[10px] font-semibold uppercase tracking-[.24em]" style={{ color: accent }}>{brief.mainService || "Personal coaching"}</div>
++        <button disabled={!editable} onClick={() => select("headline")} className={cn("mt-7 block text-left", clickable("headline"))}><h1 className={cn("font-light leading-[.93] tracking-[-.045em]", narrow ? "text-[3.35rem]" : "text-[5.6rem]")}>{copy.headline}</h1></button>
++        <button disabled={!editable} onClick={() => select("subheadline")} className={cn("mt-7 block max-w-xl text-left text-lg font-light leading-8 text-white/75", clickable("subheadline"))}>{copy.subheadline}</button>
++        <button disabled={!editable} onClick={() => select("button")} className={cn("mt-9 inline-flex items-center gap-3 rounded-sm px-5 py-4 font-sans text-sm font-semibold text-[#251a14]", clickable("button"))} style={{ background: accent }}>{copy.button}<ArrowRight className="h-4 w-4" /></button>
++        <div className="mt-9 flex items-center gap-2 font-sans text-xs text-white/55"><MapPin className="h-3.5 w-3.5" />{brief.location || brief.deliveryMode || "Available by appointment"}</div>
++      </div>
++    </section>
++
++    {trust.length > 0 && <section className="grid bg-[#1d3026] text-white" style={{ gridTemplateColumns: narrow ? "1fr" : `repeat(${Math.min(3, trust.length)}, minmax(0, 1fr))` }}>{trust.map((item, index) => <div key={item} className="border-t border-white/10 px-7 py-7 md:border-r md:px-12"><div className="text-3xl font-light italic" style={{ color: accent }}>0{index + 1}</div><div className="mt-2 font-sans text-xs leading-5 text-white/65">{item}</div></div>)}</section>}
++
++    {services && <section className={cn("bg-[#fbf8f2]", narrow ? "px-7 py-16" : "grid grid-cols-[.8fr_1.2fr] gap-16 px-14 py-24")}><div><div className="font-sans text-[10px] font-semibold uppercase tracking-[.22em] text-[#3a5a45]">{services.eyebrow || "Is this for you?"}</div><h2 className={cn("mt-5 font-light leading-[1.03] tracking-[-.035em]", narrow ? "text-4xl" : "text-6xl")}>{services.title}</h2></div><div className={cn(narrow && "mt-7")}><p className="max-w-2xl text-lg font-light leading-8 text-[#655b4f]">{services.body}</p>{services.highlights?.length ? <div className="mt-8 grid gap-3">{services.highlights.map((item, index) => <div key={item} className="flex items-start gap-4 border-t border-[#d8cebd] py-4"><span className="font-sans text-[10px] font-bold text-[#3a5a45]">0{index + 1}</span><span className="font-sans text-sm leading-6">{item}</span></div>)}</div> : null}</div></section>}
++
++    {steps.length > 0 && <section className={cn("bg-[#f3ede3]", narrow ? "px-7 py-16" : "px-14 py-24")}><div className="max-w-6xl"><div className="font-sans text-[10px] font-semibold uppercase tracking-[.22em] text-[#3a5a45]">Your first steps</div><h2 className={cn("mt-5 max-w-2xl font-light leading-[1.03] tracking-[-.035em]", narrow ? "text-4xl" : "text-6xl")}>{approach?.title || "A clear way to begin."}</h2><div className={cn("mt-12 grid gap-0", narrow ? "grid-cols-1" : "grid-cols-3")}>{steps.map((item, index) => <div key={item} className="border-t border-[#d8cebd] py-7 md:pr-8"><div className="text-3xl font-light italic text-[#e0bca9]">0{index + 1}</div><div className="mt-5 font-sans text-sm leading-6 text-[#514940]">{item}</div></div>)}</div></div></section>}
++
++    {(about || copy.about) && <section className={cn("relative overflow-hidden bg-[#e6dccb]", narrow ? "px-7 py-16" : "px-14 py-28")}><div className="absolute -right-20 -top-28 text-[22rem] font-light italic leading-none text-white/25">“</div><div className="relative max-w-4xl"><div className="font-sans text-[10px] font-semibold uppercase tracking-[.22em] text-[#3a5a45]">{about?.eyebrow || "A personal approach"}</div><button disabled={!editable} onClick={() => select("about")} className={cn("mt-7 block text-left", clickable("about"))}><p className={cn("font-light leading-[1.3] tracking-[-.025em]", narrow ? "text-2xl" : "text-4xl")}>{about?.body || copy.about}</p></button><div className="mt-8 font-sans text-sm font-semibold text-[#3a5a45]">{brief.businessName}</div></div></section>}
++
++    {(brief.prices || brief.faqQuestion) && <section className={cn("bg-[#fbf8f2]", narrow ? "px-7 py-16" : "grid grid-cols-2 gap-16 px-14 py-24")}><div><div className="font-sans text-[10px] font-semibold uppercase tracking-[.22em] text-[#3a5a45]">Good to know</div><h2 className="mt-5 text-5xl font-light leading-none">The practical details.</h2>{brief.prices && <p className="mt-7 border-t border-[#d8cebd] pt-6 text-lg leading-8 text-[#655b4f]">{brief.prices}</p>}</div>{brief.faqQuestion && <div className={cn("border-y border-[#d8cebd] py-6", narrow && "mt-10")}><h3 className="font-sans text-base font-semibold">{brief.faqQuestion}</h3><p className="mt-3 text-lg font-light leading-8 text-[#655b4f]">{brief.faqAnswer}</p></div>}</section>}
++
++    {brief.testimonialQuote && <section className={cn("bg-[#f3ede3] text-center", narrow ? "px-7 py-16" : "px-14 py-24")}><div className="mx-auto max-w-4xl text-4xl font-light italic leading-tight">“{brief.testimonialQuote.replace(/^[“\"']+|[”\"']+$/g, "")}”</div>{brief.testimonialName && <div className="mt-7 font-sans text-xs font-semibold uppercase tracking-[.16em] text-[#655b4f]">{brief.testimonialName}</div>}</section>}
++
++    <section className={cn("bg-[#1d3026] text-[#fbf8f2]", narrow ? "px-7 py-16" : "px-14 py-24")}><div className="max-w-4xl"><div className="font-sans text-[10px] font-semibold uppercase tracking-[.22em]" style={{ color: accent }}>{contact?.eyebrow || "Your next step"}</div><h2 className={cn("mt-5 font-light leading-[1.02]", narrow ? "text-4xl" : "text-6xl")}>{contact?.title || "Ready to talk it through?"}</h2><p className="mt-6 max-w-2xl text-lg font-light leading-8 text-white/65">{contact?.body || brief.offer || copy.subheadline}</p><div className="mt-8 inline-flex items-center gap-3 rounded-sm px-5 py-4 font-sans text-sm font-semibold text-[#251a14]" style={{ background: accent }}>{copy.button}<ArrowRight className="h-4 w-4" /></div></div></section>
++    <footer className="flex items-center justify-between border-t border-white/10 bg-[#1d3026] px-7 py-7 font-sans text-[10px] text-white/45 md:px-14"><span>{brief.businessName}</span><span>{brief.location}</span></footer>
++  </div>;
++}
++
++const htmlEscape = (value: string) => value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[char] || char);
++
++export function buildGuidedPersonalHtml({ brief, copy, sections, heroImage, useImage, accent, bookingUrl, locale = "en-GB" }: Omit<Props, "narrow" | "editable" | "selectedPart" | "onSelect" | "onReplaceImage"> & { bookingUrl: string; locale?: string }) {
++  const h = htmlEscape;
++  const get = (id: string) => sections.find((item) => item.id === id);
++  const services = get("services");
++  const approach = get("approach");
++  const about = get("about");
++  const contact = get("contact");
++  const steps = approach?.highlights?.filter(Boolean) || brief.process.split(/\n|,|\.|;/).map((item) => item.trim()).filter((item) => item.length > 8).slice(0, 3);
++  const trust = [brief.credentials, brief.location ? `Based in ${brief.location}` : "", brief.deliveryMode || ""].filter(Boolean).slice(0, 3);
++  const serviceCards = services?.highlights?.filter(Boolean).map((item, index) => `<div class="line"><span>0${index + 1}</span><strong>${h(item)}</strong></div>`).join("") || "";
++  const stepCards = steps.map((item, index) => `<div class="step"><i>0${index + 1}</i><p>${h(item)}</p></div>`).join("");
++  const image = useImage ? `<img class="hero-image" src="${heroImage}" alt="${h(`${brief.businessName} ${brief.mainService}`.trim())}" width="1800" height="1200">` : "";
++  const schema = JSON.stringify({
++    "@context": "https://schema.org",
++    "@type": "ProfessionalService",
++    name: brief.businessName,
++    description: copy.subheadline,
++    areaServed: brief.location || undefined,
++    url: bookingUrl.startsWith("http") ? bookingUrl : undefined,
++  }).replace(/</g, "\\u003c");
++  return `<!doctype html>
++<html lang="${h(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
++<title>${h(brief.businessName)} | ${h(brief.mainService)}</title>
++<meta name="description" content="${h(copy.subheadline)}"><meta property="og:type" content="website"><meta property="og:title" content="${h(copy.headline)}"><meta property="og:description" content="${h(copy.subheadline)}"><meta name="theme-color" content="#1d3026">
++<script type="application/ld+json">${schema}</script>
++<style>
++:root{--forest:#1d3026;--paper:#fbf8f2;--oat:#f3ede3;--sand:#e6dccb;--ink:#211d19;--soft:#655b4f;--accent:${accent};--rule:#d8cebd;--gutter:clamp(1.25rem,5vw,4.5rem)}
++*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--oat);color:var(--ink);font-family:Georgia,"Times New Roman",serif;overflow-x:hidden}a{color:inherit}a:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.sans{font-family:Arial,Helvetica,sans-serif}.nav{display:flex;align-items:center;justify-content:space-between;padding:1.25rem var(--gutter);background:var(--forest);color:var(--paper)}.nav strong{font-family:Arial,sans-serif;font-size:.9rem}.nav div{display:flex;gap:1.7rem;align-items:center;font:600 .72rem Arial,sans-serif}.nav a{text-decoration:none}.nav .nav-cta{border-bottom:1px solid var(--accent);padding-bottom:.25rem}
++.hero{position:relative;isolation:isolate;display:flex;min-height:78vh;align-items:center;overflow:hidden;background:var(--forest);color:var(--paper)}.hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.65;z-index:-2}.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(21,39,30,.98),rgba(21,39,30,.78) 46%,rgba(21,39,30,.1) 84%);z-index:-1}.hero.no-image::after{content:"";position:absolute;width:34rem;height:34rem;border-radius:50%;right:-6rem;top:2rem;background:radial-gradient(circle,rgba(224,188,169,.22),transparent 68%);border:1px solid rgba(255,255,255,.08);z-index:-1}.hero-inner{width:min(52rem,100%);padding:clamp(5rem,9vw,8rem) var(--gutter)}.eyebrow{font:600 .68rem/1.2 Arial,sans-serif;text-transform:uppercase;letter-spacing:.24em;color:var(--accent)}h1,h2,p{margin-top:0}h1{font-size:clamp(3.7rem,8vw,7.3rem);line-height:.9;letter-spacing:-.052em;font-weight:400;margin:1.7rem 0}.hero p{font-size:clamp(1.08rem,1.7vw,1.3rem);line-height:1.7;color:rgba(255,255,255,.75);max-width:38rem}.button{display:inline-flex;align-items:center;gap:.8rem;margin-top:1.2rem;padding:1rem 1.3rem;background:var(--accent);color:#251a14;text-decoration:none;font:700 .88rem Arial,sans-serif;border-radius:2px}.location{margin-top:2rem;color:rgba(255,255,255,.55);font:.76rem Arial,sans-serif}
++.trust{display:grid;grid-template-columns:repeat(${Math.max(1, trust.length)},minmax(0,1fr));background:var(--forest);color:#fff}.trust div{padding:1.5rem var(--gutter);border-top:1px solid rgba(255,255,255,.1);border-right:1px solid rgba(255,255,255,.1)}.trust i,.step i{display:block;font-size:2rem;color:var(--accent);font-weight:400}.trust p{margin:.45rem 0 0;font:.78rem/1.6 Arial,sans-serif;color:rgba(255,255,255,.65)}
++.section{padding:clamp(4rem,8vw,7rem) var(--gutter)}.split{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(2.5rem,7vw,7rem)}h2{font-size:clamp(2.8rem,5.5vw,5rem);font-weight:400;line-height:1;letter-spacing:-.04em;margin:1.25rem 0}.body{font-size:clamp(1.08rem,1.6vw,1.28rem);line-height:1.72;color:var(--soft);max-width:46rem}.services{background:var(--paper)}.line{display:flex;gap:1rem;border-top:1px solid var(--rule);padding:1rem 0;font:400 .9rem/1.6 Arial,sans-serif}.line span{font-size:.68rem;color:#3a5a45}.steps{background:var(--oat)}.step-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:3rem}.step{border-top:1px solid var(--rule);padding:1.5rem 2rem 1.5rem 0}.step p{font:400 .9rem/1.65 Arial,sans-serif;color:#514940;margin-top:1.1rem}.letter{position:relative;overflow:hidden;background:var(--sand)}.letter::after{content:"“";position:absolute;right:-3rem;top:-8rem;font-size:24rem;color:rgba(255,255,255,.25)}.letter .inner{position:relative;z-index:1;max-width:62rem}.letter .body{font-size:clamp(1.65rem,3.5vw,3rem);line-height:1.3;color:var(--ink)}.details{background:var(--paper)}.detail{border-block:1px solid var(--rule);padding:1.5rem 0}.detail h3{font:600 1rem Arial,sans-serif}.quote{text-align:center;background:var(--oat)}blockquote{font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;max-width:62rem;margin:0 auto;font-style:italic}.quote cite{display:block;margin-top:1.7rem;font:600 .72rem Arial,sans-serif;text-transform:uppercase;letter-spacing:.16em;color:var(--soft)}.book{background:var(--forest);color:var(--paper)}.book p{color:rgba(255,255,255,.65)}footer{display:flex;justify-content:space-between;padding:1.5rem var(--gutter);background:var(--forest);color:rgba(255,255,255,.45);border-top:1px solid rgba(255,255,255,.1);font:.68rem Arial,sans-serif}
++@media(max-width:720px){.nav div span{display:none}.hero{min-height:44rem;align-items:flex-end}.hero::before{background:linear-gradient(0deg,rgba(21,39,30,.98),rgba(21,39,30,.62))}.hero-inner{padding-top:7rem;padding-bottom:4rem}h1{font-size:clamp(3.2rem,16vw,5rem)}.trust,.split,.step-grid{grid-template-columns:1fr}.trust div{padding:1.25rem var(--gutter)}.split{gap:2rem}.step{padding-right:0}footer{gap:1rem;flex-wrap:wrap}}
++</style></head><body>
++<nav class="nav"><strong>${h(brief.businessName)}</strong><div><span>Work with me</span><span>About</span><a class="nav-cta" href="${h(bookingUrl)}">${h(copy.button)}</a></div></nav>
++<main><section class="hero${useImage ? "" : " no-image"}">${image}<div class="hero-inner"><div class="eyebrow">${h(brief.mainService)}</div><h1>${h(copy.headline)}</h1><p>${h(copy.subheadline)}</p><a class="button" href="${h(bookingUrl)}">${h(copy.button)} →</a><div class="location">${h(brief.location || brief.deliveryMode || "Available by appointment")}</div></div></section>
++${trust.length ? `<section class="trust">${trust.map((item, index) => `<div><i>0${index + 1}</i><p>${h(item)}</p></div>`).join("")}</section>` : ""}
++${services ? `<section class="section services split" id="services"><div><div class="eyebrow">${h(services.eyebrow || "Is this for you?")}</div><h2>${h(services.title)}</h2></div><div><p class="body">${h(services.body)}</p>${serviceCards}</div></section>` : ""}
++${steps.length ? `<section class="section steps"><div class="eyebrow">Your first steps</div><h2>${h(approach?.title || "A clear way to begin.")}</h2><div class="step-grid">${stepCards}</div></section>` : ""}
++${about || copy.about ? `<section class="section letter" id="about"><div class="inner"><div class="eyebrow">${h(about?.eyebrow || "A personal approach")}</div><p class="body">${h(about?.body || copy.about)}</p><div class="sans" style="margin-top:2rem;color:#3a5a45;font-weight:600">${h(brief.businessName)}</div></div></section>` : ""}
++${brief.prices || brief.faqQuestion ? `<section class="section details split"><div><div class="eyebrow">Good to know</div><h2>The practical details.</h2>${brief.prices ? `<p class="body">${h(brief.prices)}</p>` : ""}</div>${brief.faqQuestion ? `<div class="detail"><h3>${h(brief.faqQuestion)}</h3><p class="body">${h(brief.faqAnswer)}</p></div>` : ""}</section>` : ""}
++${brief.testimonialQuote ? `<section class="section quote"><blockquote>“${h(brief.testimonialQuote.replace(/^[“\"']+|[”\"']+$/g, ""))}”</blockquote>${brief.testimonialName ? `<cite>${h(brief.testimonialName)}</cite>` : ""}</section>` : ""}
++<section class="section book" id="contact"><div class="eyebrow">${h(contact?.eyebrow || "Your next step")}</div><h2>${h(contact?.title || "Ready to talk it through?")}</h2><p class="body">${h(contact?.body || brief.offer || copy.subheadline)}</p><a class="button" href="${h(bookingUrl)}">${h(copy.button)} →</a></section></main>
++<footer><span>${h(brief.businessName)}</span><span>${h(brief.location)}</span></footer></body></html>`;
++}
+diff --git a/artifacts/client-portal/src/pages/website-prototype.tsx b/artifacts/client-portal/src/pages/website-prototype.tsx
+index 1873452..fb75a5e 100644
+--- a/artifacts/client-portal/src/pages/website-prototype.tsx
++++ b/artifacts/client-portal/src/pages/website-prototype.tsx
+@@ -49,11 +49,23 @@ import {
+   X,
+ } from "lucide-react";
+ import { basePath, cn } from "@/lib/utils";
++import { buildGuidedPersonalHtml, GuidedPersonalSite } from "@/components/website/GuidedPersonalSite";
+ 
+ type Stage = "home" | "brief" | "content" | "style" | "direction" | "building" | "editor" | "delivery";
+ type StyleMode = "recommend" | "choose" | "brand";
+ type PreviewSize = "desktop" | "tablet" | "mobile";
+ type EditablePart = "headline" | "subheadline" | "about" | "button";
++type DirectionOption = {
++  id: string;
++  name: string;
++  description: string;
++  visitorJob: string;
++  visualGrammar: string;
++  lengthMode: "compact" | "standard" | "expanded";
++  assetMode: "image-light" | "image-led" | "image-rich";
++  scaleMode: "solo" | "team" | "multi-location";
++  warnings: string[];
++};
+ 
+ type Brief = {
+   businessName: string;
+@@ -61,6 +73,10 @@ type Brief = {
+   mainService: string;
+   audience: string;
+   location: string;
++  country: string;
++  deliveryMode: string;
++  businessScale: string;
++  locationCount: string;
+   goal: string;
+   context: string;
+   bookingLink: string;
+@@ -75,6 +91,12 @@ type Brief = {
+   process: string;
+   faqQuestion: string;
+   faqAnswer: string;
++  schedule: string;
++  prices: string;
++  programmeStart: string;
++  programmeCapacity: string;
++  contentLength: string;
++  imagePreference: string;
+   sections: string[];
+ };
+ 
+@@ -146,6 +168,10 @@ const initialBrief: Brief = {
+   mainService: "",
+   audience: "",
+   location: "",
++  country: "United Kingdom",
++  deliveryMode: "In person",
++  businessScale: "Solo operator",
++  locationCount: "1",
+   goal: "Book a consultation",
+   context: "",
+   bookingLink: "",
+@@ -160,6 +186,12 @@ const initialBrief: Brief = {
+   process: "",
+   faqQuestion: "",
+   faqAnswer: "",
++  schedule: "",
++  prices: "",
++  programmeStart: "",
++  programmeCapacity: "",
++  contentLength: "Auto",
++  imagePreference: "Auto",
+   sections: ["services", "about", "contact"],
+ };
+ 
+@@ -236,12 +268,17 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+   const [fontStyle, setFontStyle] = useState(() => readStored(userId, "font-style", designLooks.find((look) => look.id === paletteId)?.font || "Strong & modern"));
+   const [surface, setSurface] = useState("Mostly dark");
+   const [direction, setDirection] = useState(0);
++  const [compositionId, setCompositionId] = useState("guided-personal");
++  const [directionOptions, setDirectionOptions] = useState<DirectionOption[]>([]);
++  const [directionBlocks, setDirectionBlocks] = useState<string[]>([]);
++  const [directionsLoading, setDirectionsLoading] = useState(false);
++  const [directionsLoaded, setDirectionsLoaded] = useState(false);
+   const [previewSize, setPreviewSize] = useState<PreviewSize>("desktop");
+   const [copy, setCopy] = useState<SiteCopy>(() => readStored(userId, "copy", defaultCopy));
+   const [generatedSections, setGeneratedSections] = useState<GeneratedSection[]>([]);
+   const [selectedPart, setSelectedPart] = useState<EditablePart>("headline");
+   const [aiPrompt, setAiPrompt] = useState("");
+-  const [aiChanges, setAiChanges] = useState(10);
++  const [aiChanges, setAiChanges] = useState(5);
+   const [generationAttempts, setGenerationAttempts] = useState(0);
+   const [buildIndex, setBuildIndex] = useState(0);
+   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+@@ -273,7 +310,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+     if (projectsQuery.data.length > 0) {
+       const p = projectsQuery.data[0];
+       setProjectId(p.id);
+-      setAiChanges(Math.max(0, 10 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
++      setAiChanges(Math.max(0, 5 - Number((p as { refinementAttempts?: number }).refinementAttempts || 0)));
+       setGenerationAttempts(Number((p as { generationAttempts?: number }).generationAttempts || 0));
+       if (p.currentStage && p.currentStage !== "home") {
+         if (p.currentStage === "building") recoveringBuildRef.current = true;
+@@ -294,6 +331,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+         if (s.brandColour) setBrandColour(s.brandColour as string);
+         if (s.surface) setSurface(s.surface as string);
+         if (s.direction !== undefined) setDirection(s.direction as number);
++        if (s.compositionId) setCompositionId(s.compositionId as string);
+         if (s.copy) setCopy(s.copy as SiteCopy);
+       }
+       if (Array.isArray(p.sections)) setGeneratedSections(p.sections as GeneratedSection[]);
+@@ -316,7 +354,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+     const current = projectsQuery.data?.find((project) => project.id === projectId);
+     if (!current) return;
+     setGenerationAttempts(Number((current as { generationAttempts?: number }).generationAttempts || 0));
+-    setAiChanges(Math.max(0, 10 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
++    setAiChanges(Math.max(0, 5 - Number((current as { refinementAttempts?: number }).refinementAttempts || 0)));
+   }, [projectsQuery.data, projectId]);
+ 
+   useEffect(() => {
+@@ -380,7 +418,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+       return;
+     }
+ 
+-    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections });
++    const stateToSave = JSON.stringify({ stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, generatedSections });
+     if (stateToSave === lastSavedStr.current) return;
+     setSavedLabel("Saving...");
+     saveTimeout.current = window.setTimeout(() => {
+@@ -391,7 +429,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+           data: {
+             currentStage: stage,
+             briefData: brief as any,
+-            styleData: { styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy },
++            styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+             sections: generatedSections as any,
+           },
+         });
+@@ -403,7 +441,51 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+       if (saveTimeout.current !== null) window.clearTimeout(saveTimeout.current);
+       saveTimeout.current = null;
+     };
+-  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, heroImage, brandColour, generatedSections, isAuthenticated, projectId, resetRequested, userId]);
++  }, [stage, brief, styleMode, copy, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, generatedSections, isAuthenticated, projectId, resetRequested, userId]);
++
++  const loadEligibleDirections = useCallback(async (id = projectId) => {
++    if (!id) return;
++    setDirectionsLoading(true);
++    try {
++      const token = await getToken();
++      const response = await fetch(`${basePath}/api/website-projects/${id}/directions`, {
++        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
++      });
++      const data = await response.json();
++      if (!response.ok) throw new Error(data.error || "Could not prepare design directions");
++      const options = Array.isArray(data.directions) ? data.directions as DirectionOption[] : [];
++      setDirectionOptions(options);
++      setDirectionBlocks(Array.isArray(data.globalBlocks) ? data.globalBlocks : []);
++      if (options.length && !options.some((option) => option.id === compositionId)) setCompositionId(options[0].id);
++    } catch (error) {
++      console.error("Direction analysis failed", error);
++      setDirectionBlocks([error instanceof Error ? error.message : "Could not prepare design directions"]);
++    } finally {
++      setDirectionsLoading(false);
++      setDirectionsLoaded(true);
++    }
++  }, [projectId, getToken, compositionId]);
++
++  const continueToDirections = useCallback(async () => {
++    if (!projectId) return;
++    setSavedLabel("Checking which designs fit...");
++    await updateProject.mutateAsync({
++      projectId,
++      data: {
++        currentStage: "direction",
++        briefData: brief as any,
++        styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
++        sections: generatedSections as any,
++      },
++    });
++    setStage("direction");
++    await loadEligibleDirections(projectId);
++    setSavedLabel("Saved");
++  }, [projectId, updateProject, brief, styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy, generatedSections, loadEligibleDirections]);
++
++  useEffect(() => {
++    if (stage === "direction" && projectId && !directionsLoaded && !directionsLoading) void loadEligibleDirections(projectId);
++  }, [stage, projectId, directionsLoaded, directionsLoading, loadEligibleDirections]);
+ 
+   useEffect(() => {
+     if (stage !== "building") return;
+@@ -447,7 +529,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+           currentStage: "building",
+           briefData: brief as any,
+           styleData: {
+-            styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy: previousCopy,
++            styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy: previousCopy,
+           },
+           sections: generatedSections as any,
+         },
+@@ -499,7 +581,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+         data: {
+           currentStage: "editor",
+           briefData: brief as any,
+-          styleData: { styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy },
++          styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+           sections: generatedSections as any,
+         },
+       });
+@@ -510,7 +592,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+       const updatedCopy = (updated.styleData as { copy?: SiteCopy } | null)?.copy;
+       if (!updatedCopy) throw new Error("Updated copy was missing");
+       setCopy(updatedCopy);
+-      setAiChanges(Math.max(0, 10 - Number((updated as { refinementAttempts?: number }).refinementAttempts || 0)));
++      setAiChanges(Math.max(0, 5 - Number((updated as { refinementAttempts?: number }).refinementAttempts || 0)));
+       setAiPrompt("");
+       setSavedLabel("Edit applied and saved");
+       qc.setQueryData(getListWebsiteProjectsQueryKey(), (current: typeof projectsQuery.data) =>
+@@ -572,7 +654,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+       setStage("editor");
+       return;
+     }
+-    if (!ownPhoto) {
++    if (!ownPhoto && compositionId !== "guided-personal") {
+       setSavedLabel("Replace the demonstration image with a photo you own or may use before downloading.");
+       setStage("editor");
+       return;
+@@ -589,6 +671,27 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+         return;
+       }
+     }
++    if (compositionId === "guided-personal") {
++      const locale = brief.country === "United States" ? "en-US" : brief.country === "Canada" ? "en-CA" : brief.country === "Australia" ? "en-AU" : brief.country === "New Zealand" ? "en-NZ" : "en-GB";
++      const finishedHtml = buildGuidedPersonalHtml({
++        brief,
++        copy,
++        sections: generatedSections,
++        heroImage: exportedHero,
++        useImage: ownPhoto,
++        accent: palette.accent === "#ef162f" ? "#e0bca9" : palette.accent,
++        bookingUrl: safeLink(brief.bookingLink),
++        locale,
++      });
++      const blob = new Blob([finishedHtml], { type: "text/html" });
++      const url = URL.createObjectURL(blob);
++      const link = document.createElement("a");
++      link.href = url;
++      link.download = `${(brief.businessName || "fitness-website").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`;
++      link.click();
++      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
++      return;
++    }
+     const generated = (id: string, fallbackTitle: string, fallbackBody: string, fallbackEyebrow: string) => {
+       const section = generatedSections.find((item) => item.id === id);
+       return {
+@@ -660,7 +763,7 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+             status: "approved",
+             currentStage: "delivery",
+             briefData: brief as any,
+-            styleData: { styleMode, paletteId, fontStyle, surface, direction, heroImage, brandColour, copy },
++            styleData: { styleMode, paletteId, fontStyle, surface, direction, compositionId, heroImage, brandColour, copy },
+             sections: generatedSections as any,
+           },
+         });
+@@ -678,11 +781,11 @@ export default function WebsitePrototypePage({ accountName, accountEmail, accoun
+       {stage === "home" && <HomeScreen hasProgress={Boolean(brief.businessName.trim())} start={() => setStage("brief")} resume={() => setStage(readStored<Stage>(userId, "last-stage", "brief"))} />}
+       {stage === "brief" && <BriefScreen brief={brief} setBrief={setBrief} files={uploadedFiles} upload={() => uploadRef.current?.click()} back={() => setStage("home")} next={() => setStage("content")} saved={savedLabel} />}
+       {stage === "content" && <ContentScreen brief={brief} setBrief={setBrief} back={() => setStage("brief")} next={() => setStage("style")} saved={savedLabel} />}
+-      {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} businessType={brief.businessType} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => setStage("direction")} setDirection={setDirection} palette={palette} />}
+-      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} selected={direction} setSelected={setDirection} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} returnToEditor={() => setStage("editor")} />}
++      {stage === "style" && <StyleScreen mode={styleMode} setMode={setStyleMode} moods={moods} setMoods={setMoods} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} surface={surface} setSurface={setSurface} brandColour={brandColour} setBrandColour={setBrandColour} businessName={brief.businessName} businessType={brief.businessType} mainService={brief.mainService} audience={brief.audience} heroImage={heroImage} upload={() => uploadRef.current?.click()} back={() => setStage("content")} next={() => void continueToDirections()} setDirection={setDirection} palette={palette} />}
++      {stage === "direction" && <DirectionScreen brief={brief} setBrief={setBrief} copy={copy} palette={palette} heroImage={heroImage} options={directionOptions} selectedId={compositionId} setSelectedId={setCompositionId} loading={directionsLoading} blocks={directionBlocks} back={() => setStage("style")} build={beginBuild} hasDraft={generatedSections.length > 0} generationAttempts={generationAttempts} returnToEditor={() => setStage("editor")} />}
+       {stage === "building" && <BuildingScreen brief={brief} palette={palette} copy={copy} heroImage={heroImage} index={buildIndex} />}
+-      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} generationAttempts={generationAttempts} saved={savedLabel} />}
+-      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
++      {stage === "editor" && <EditorScreen brief={brief} setBrief={setBrief} copy={copy} generatedSections={generatedSections} updateSection={updateSection} updateHighlight={updateHighlight} palette={palette} paletteId={paletteId} setPaletteId={setPaletteId} fontStyle={fontStyle} setFontStyle={setFontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} replaceImage={() => imageRef.current?.click()} previewSize={previewSize} setPreviewSize={setPreviewSize} selectedPart={selectedPart} setSelectedPart={setSelectedPart} updateCopy={updateCopy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} applyAiChange={applyAiChange} aiChanges={aiChanges} approve={() => void approveWebsite()} changeDirection={() => setStage("direction")} generationAttempts={generationAttempts} saved={savedLabel} />}
++      {stage === "delivery" && <DeliveryScreen brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} fontStyle={fontStyle} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} edit={() => setStage("editor")} download={() => void downloadWebsite()} />}
+       <input ref={uploadRef} className="hidden" type="file" multiple accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
+       <input ref={imageRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={(event) => { void handleAssets(event.target.files); event.target.value = ""; }} />
+       {showLocked && <LockedModal product={showLocked} close={() => setShowLocked(null)} />}
+@@ -726,11 +829,16 @@ function BriefScreen({ brief, setBrief, files, upload, back, next, saved }: { br
+         <Field label="Main service" required><TextInput value={brief.mainService} onChange={(value) => set("mainService", value)} placeholder="Example: One-to-one strength coaching" /></Field>
+         <Field label="Ideal customer" required><TextInput value={brief.audience} onChange={(value) => set("audience", value)} placeholder="Example: Busy professionals aged 35–55" /></Field>
+         <Field label="Location"><TextInput value={brief.location} onChange={(value) => set("location", value)} placeholder="Manchester, UK or Online" /></Field>
++        <Field label="Country" required><SelectInput value={brief.country} onChange={(value) => set("country", value)} options={["United Kingdom", "United States", "Canada", "Australia", "New Zealand", "Other"]} /></Field>
++        <Field label="How do you deliver the service?"><SelectInput value={brief.deliveryMode} onChange={(value) => set("deliveryMode", value)} options={["In person", "Online", "Both in person and online"]} /></Field>
++        <Field label="Business setup"><SelectInput value={brief.businessScale} onChange={(value) => set("businessScale", value)} options={["Solo operator", "Team at one location", "Multiple locations"]} /></Field>
++        {brief.businessScale === "Multiple locations" && <Field label="Number of locations"><TextInput value={brief.locationCount} onChange={(value) => set("locationCount", value)} placeholder="Example: 4" /></Field>}
+         <Field label="Main website goal"><SelectInput value={brief.goal} onChange={(value) => set("goal", value)} options={["Book a consultation", "Receive enquiries", "Fill classes", "Sell a programme", "Promote online coaching", "Build professional credibility"]} /></Field>
+         <div className="md:col-span-2"><Field label="Booking or enquiry destination" hint="Required before approval. Add your booking URL, or mailto:you@example.com or tel:+441234567890 if you do not use a booking tool."><TextInput value={brief.bookingLink} onChange={(value) => set("bookingLink", value)} placeholder="https://..." /></Field></div>
+         <div className="md:col-span-2"><Field label="Tell us anything else" hint="Paste existing copy, social bios, testimonials or rough notes. It does not need to be organised."><textarea value={brief.context} onChange={(event) => set("context", event.target.value)} className="min-h-36 w-full rounded-xl border border-border px-4 py-3 text-sm outline-none transition focus:border-border focus:ring-4 focus:ring-[#ef162f]/10" placeholder="Tell us about your story, services, approach, qualifications, results or anything else that would help..." /></Field></div>
+       </div>
+       <div className="mt-6"><Field label="Your photos and image assets" hint="JPG, PNG, WebP or SVG, up to 25 MB each. The first uploaded image becomes your hero; other images are saved for later use."><button onClick={upload} className="flex min-h-32 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary text-sm text-muted-foreground hover:border-border"><Upload className="mb-2 h-5 w-5" /><span className="font-semibold text-muted-foreground">Choose images</span><span className="mt-1 text-xs">You can add more later</span></button></Field>{files.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{files.map((file, index) => <span key={`${file}-${index}`} className="inline-flex items-center rounded-full bg-secondary px-3 py-1.5 text-xs">{file}</span>)}</div>}</div>
++      <div className="mt-6 grid gap-5 border-t border-border pt-6 md:grid-cols-2"><Field label="How should the site use images?"><SelectInput value={brief.imagePreference} onChange={(value) => set("imagePreference", value)} options={["Auto", "Image-light", "Image-rich"]} /></Field><Field label="Preferred page depth" hint="Auto prevents a thin brief being stretched into an empty page."><SelectInput value={brief.contentLength} onChange={(value) => set("contentLength", value)} options={["Auto", "Compact", "Standard", "Expanded"]} /></Field></div>
+       <div className="mt-8 flex justify-between"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><button disabled={!ready} onClick={next} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">Review my brief<ArrowRight className="h-4 w-4" /></button></div></section>
+       <aside className="overflow-hidden rounded-2xl border border-border bg-card"><div className="relative min-h-60 bg-secondary p-7 text-white"><div className="absolute right-0 top-0 h-full w-2/3 bg-[radial-gradient(circle_at_top_right,rgba(239,22,47,.38),transparent_65%)]" /><div className="relative"><div className="h-12 w-1 bg-secondary" /><div className="mt-6 text-4xl font-black uppercase leading-[.92]">A website<br />that works<br /><span className="text-muted-foreground">as hard as you do.</span></div></div></div><div className="space-y-5 p-6"><Authority icon={Sparkles} title="Personal to your business" text="Your audience, offer, proof and personality shape the website." /><Authority icon={Monitor} title="Built for every screen" text="Desktop and mobile presentation are reviewed before delivery." /><Authority icon={Pencil} title="You stay in control" text="Review, refine and approve everything before download." /></div></aside>
+     </div>
+@@ -747,6 +855,9 @@ function ContentScreen({ brief, setBrief, back, next, saved }: { brief: Brief; s
+         <div><div className="text-sm font-black">Sections to include</div><p className="mt-1 text-xs leading-5 text-muted-foreground">The page will still have a headline and main action. Pick the supporting sections that fit your business.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{pageSections.map((section) => <button key={section.id} type="button" onClick={() => toggleSection(section.id)} className={cn("flex items-start gap-3 rounded-xl border p-4 text-left transition", selected.includes(section.id) ? "border-border bg-secondary" : "border-border hover:border-border")}><span className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border", selected.includes(section.id) ? "border-border bg-secondary text-white" : "border-border")}>{selected.includes(section.id) && <Check className="h-3.5 w-3.5" />}</span><span><span className="block text-sm font-bold">{section.name}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{section.purpose}</span></span></button>)}</div></div>
+         <div className="grid gap-5 border-t border-border pt-7 md:grid-cols-2"><div className="md:col-span-2"><Field label="Your offer or first-step invitation" hint="For example: a free consultation, introductory class or a named programme."><TextInput value={brief.offer} onChange={(value) => set("offer", value)} placeholder="Example: Book a free 20-minute coaching call" /></Field></div><div className="md:col-span-2"><Field label="What makes you different?" hint="Your genuine method or experience. Avoid claims you cannot prove."><textarea value={brief.differentiator} onChange={(event) => set("differentiator", event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="How do you coach, teach or support clients differently?" /></Field></div>
+           {selected.includes("approach") && <div className="md:col-span-2"><Field label="How do customers get started?" hint="A few rough steps are enough."><textarea value={brief.process} onChange={(event) => set("process", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Book a call, meet your coach, start your plan" /></Field></div>}
++          {/class|studio|group|yoga|pilates/i.test(`${brief.goal} ${brief.businessType}`) && <div className="md:col-span-2"><Field label="Real class or session schedule" hint="Add only times you want displayed. A static schedule will never pretend to show live capacity."><textarea value={brief.schedule} onChange={(event) => set("schedule", event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Reformer Foundations, Monday and Wednesday at 18:00" /></Field></div>}
++          {/sell|programme|online|challenge|intake/i.test(`${brief.goal} ${brief.mainService} ${brief.offer}`) && <><Field label="Programme start date" hint="Leave blank for an evergreen programme."><TextInput value={brief.programmeStart} onChange={(value) => set("programmeStart", value)} placeholder="Example: 14 October 2026" /></Field><Field label="Real capacity" hint="Only include a limit that genuinely applies."><TextInput value={brief.programmeCapacity} onChange={(value) => set("programmeCapacity", value)} placeholder="Example: 12 places" /></Field></>}
++          <div className="md:col-span-2"><Field label="Prices to show" hint="Optional. Paste the exact prices or packages that may appear on the page. Leave blank to use an enquiry or booking action."><textarea value={brief.prices} onChange={(event) => set("prices", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Example: Initial assessment £65; monthly coaching from £180" /></Field></div>
+           {selected.includes("results") && <><Field label="Qualifications or credible proof"><TextInput value={brief.credentials} onChange={(value) => set("credentials", value)} placeholder="Example: Level 3 PT, 8 years coaching" /></Field><Field label="Results you can substantiate"><TextInput value={brief.results} onChange={(value) => set("results", value)} placeholder="Example: 200+ clients coached" /></Field></>}
+           {selected.includes("testimonial") && <><div className="md:col-span-2"><Field label="A real client quote" hint="We will not invent testimonials or transformation results."><textarea value={brief.testimonialQuote} onChange={(event) => set("testimonialQuote", event.target.value)} className="min-h-20 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" placeholder="Paste the client's approved words here" /></Field></div><Field label="Name to display"><TextInput value={brief.testimonialName} onChange={(value) => set("testimonialName", value)} placeholder="Example: Sarah M." /></Field></>}
+           {selected.includes("faq") && <><Field label="Common question"><TextInput value={brief.faqQuestion} onChange={(value) => set("faqQuestion", value)} placeholder="Example: Do I need experience?" /></Field><Field label="Your answer"><TextInput value={brief.faqAnswer} onChange={(value) => set("faqAnswer", value)} placeholder="Example: No. We adapt to your starting point." /></Field></>}
+@@ -795,22 +906,28 @@ function MiniSite({ briefName, copy, palette, heroImage, surface, fontStyle }: {
+   return <aside className="self-start rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-5"><div className="mb-3 flex items-center justify-between px-1"><span className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Live preview</span><span className="text-[10px] text-muted-foreground">Based on your choices</span></div><div className="overflow-hidden rounded-xl border border-black/10" style={{ background: surface === "Mostly light" ? palette.light : palette.dark, color: surface === "Mostly light" ? palette.dark : "white" }}><div className="flex items-center justify-between px-5 py-4 text-[8px] font-bold"><span>{(briefName || "YOUR BUSINESS").toUpperCase()}</span><span className="rounded-md px-3 py-2 text-white" style={{ background: palette.accent }}>Get started</span></div><div className="relative min-h-[440px] overflow-hidden p-7"><img src={heroImage} alt="Fitness website example" className="absolute inset-0 h-full w-full object-cover opacity-60" /><div className="absolute inset-0" style={{ background: `linear-gradient(90deg, ${palette.dark} 12%, ${palette.dark}c9 50%, transparent)` }} /><div className="relative z-10 mt-24 max-w-[290px] text-white"><div className="mb-4 h-1 w-12" style={{ background: palette.accent }} /><h3 className={cn("text-4xl uppercase leading-[.9]", fontStyle === "Premium editorial" ? "font-serif normal-case" : "font-black")}>{copy.headline}</h3><p className="mt-4 text-xs leading-5 text-white/75">{copy.subheadline}</p><button className="mt-5 rounded-lg px-4 py-3 text-xs font-bold" style={{ background: palette.accent }}>Start your journey</button></div></div></div></aside>;
+ }
+ 
+-function DirectionScreen({ brief, setBrief, copy, palette, heroImage, selected, setSelected, back, build, hasDraft, generationAttempts, returnToEditor }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; selected: number; setSelected: (index: number) => void; back: () => void; build: () => void; hasDraft: boolean; generationAttempts: number; returnToEditor: () => void }) {
+-  const directions = [
+-    { title: "Image-led and bold", description: "Full-bleed photography, immediate impact and a clear action." },
+-    { title: "Centred statement", description: "A focused headline and a simple, confident first impression." },
+-    { title: "Premium split-screen", description: "A light editorial layout balancing your message and photography." },
+-    { title: "Editorial feature", description: "Photography opens the story, then your offer takes centre stage." },
+-  ];
+-  return <div><ShellHeader step={4} title="Choose your opening layout" subtitle="We've selected one to start. Change it if you prefer; these four choices only arrange the top of your page, not the whole website." />
+-    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{directions.map((item, index) => <button key={item.title} onClick={() => setSelected(index)} className={cn("overflow-hidden rounded-2xl border-2 bg-card text-left transition", selected === index ? "border-primary shadow-[0_14px_45px_rgba(239,22,47,.12)]" : "border-transparent ring-1 ring-[#dfe2e5] hover:ring-[#aeb3b9]")}><div className="relative h-72 overflow-hidden" style={{ background: index >= 2 ? palette.light : palette.dark }}><img src={heroImage} alt="" className={cn("absolute object-cover", index === 2 ? "right-0 top-0 h-full w-1/2" : index === 3 ? "inset-x-0 top-0 h-[58%] w-full" : "inset-0 h-full w-full", index < 2 && "opacity-70")} /><div className="absolute inset-0" style={{ background: index === 2 ? `linear-gradient(90deg,${palette.light} 45%,transparent 78%)` : index === 3 ? `linear-gradient(0deg,${palette.light} 0%,${palette.light} 23%,transparent 70%)` : index === 1 ? `linear-gradient(0deg,${palette.dark}df,${palette.dark}44)` : `linear-gradient(90deg,${palette.dark}e8,${palette.dark}22)` }} /><div className={cn("relative z-10 flex h-full flex-col p-6", index === 1 ? "items-center justify-center text-center" : index === 3 ? "justify-end" : "justify-center", index >= 2 ? "text-slate-950" : "text-white")}><span className="text-[8px] font-bold uppercase tracking-[.2em]" style={{ color: palette.accent }}>{brief.mainService || "Personal coaching"}</span><div className={cn("mt-3 text-2xl font-black leading-[.95]", index === 2 && "max-w-[55%]")}>{copy.headline}</div><span className="mt-5 w-fit rounded-md px-3 py-2 text-[8px] font-bold text-white" style={{ background: palette.accent }}>{brief.goal}</span></div></div><div className="p-5"><div className="flex items-center justify-between"><h3 className="font-sans font-bold">{item.title}</h3>{selected === index && <CheckCircle2 className="h-5 w-5 text-primary" />}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p></div></button>)}</div>
+-      <section className="rounded-2xl border border-border bg-card p-6"><div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Recommended page structure</div><h2 className="mt-2 text-2xl font-black">Built around {brief.goal.toLowerCase()}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">We will create the sections below and hide anything that lacks credible customer information.</p><div className="mt-4 flex flex-wrap gap-2">{recommendedSections(brief.businessType).map((section) => <span key={section} className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold">{section}</span>)}</div></div><div className="rounded-xl bg-secondary p-5"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={brief.banner} onChange={(event) => setBrief({ ...brief, banner: event.target.checked })} className="mt-1 accent-[#ef162f]" /><span><span className="text-sm font-bold">Announcement banner</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Useful for class openings, launches, events or time-sensitive offers.</span></span></label>{brief.banner && <input value={brief.bannerText} onChange={(event) => setBrief({ ...brief, bannerText: event.target.value })} placeholder="Example: Three coaching places available this month" className="mt-4 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-border" />}</div></div></section>
+-      <div className="flex flex-wrap items-center justify-between gap-3"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><div className="flex flex-wrap items-center gap-3">{hasDraft && <button onClick={returnToEditor} className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold">Use this design with my current copy</button>}<button onClick={build} disabled={generationAttempts >= 2} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white disabled:opacity-40">{hasDraft ? "Generate another draft" : "Build my website"}<ArrowRight className="h-4 w-4" /></button><span className="text-xs text-muted-foreground">{Math.max(0, 2 - generationAttempts)} AI drafts remaining. Changing design alone is free.</span></div></div>
++function DirectionScreen({ brief, setBrief, copy, palette, heroImage, options, selectedId, setSelectedId, loading, blocks, back, build, hasDraft, generationAttempts, returnToEditor }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; palette: PaletteChoice; heroImage: string; options: DirectionOption[]; selectedId: string; setSelectedId: (id: string) => void; loading: boolean; blocks: string[]; back: () => void; build: () => void; hasDraft: boolean; generationAttempts: number; returnToEditor: () => void }) {
++  return <div><ShellHeader step={4} title="Choose your website direction" subtitle="These are complete page systems that fit the information you supplied. Your choice changes the whole visitor journey, not only the opening image." />
++    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10">
++      {loading && <div className="flex min-h-72 items-center justify-center rounded-2xl border border-border bg-card"><div className="text-center"><RefreshCw className="mx-auto h-6 w-6 animate-spin text-primary" /><div className="mt-4 font-bold">Checking content, images and conversion route</div><p className="mt-2 text-sm text-muted-foreground">We only show designs your brief can complete properly.</p></div></div>}
++      {!loading && blocks.length > 0 && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6"><div className="font-black text-amber-950">A few essentials are still missing</div><p className="mt-2 text-sm text-amber-900">Add these before the portal recommends a complete design:</p><ul className="mt-4 space-y-2 text-sm text-amber-950">{blocks.map((block) => <li key={block} className="flex gap-2"><span>•</span>{block}</li>)}</ul></section>}
++      {!loading && options.length > 0 && <div className="grid gap-5 lg:grid-cols-3">{options.map((item, index) => {
++        const active = selectedId === item.id;
++        const imageLight = item.assetMode === "image-light";
++        return <button key={item.id} onClick={() => setSelectedId(item.id)} className={cn("overflow-hidden rounded-2xl border-2 bg-card text-left transition", active ? "border-primary shadow-[0_18px_55px_rgba(239,22,47,.13)]" : "border-transparent ring-1 ring-[#dfe2e5] hover:ring-[#aeb3b9]")}>
++          <div className="relative h-64 overflow-hidden" style={{ background: index === 0 ? palette.dark : index === 1 ? palette.light : "#eee6da" }}>
++            {!imageLight && <img src={heroImage} alt="" className={cn("absolute h-full object-cover", index === 1 ? "right-0 w-[56%]" : "inset-0 w-full", index !== 1 && "opacity-65")} />}
++            <div className="absolute inset-0" style={{ background: imageLight ? `radial-gradient(circle at 80% 15%,${palette.accent}33,transparent 35%)` : index === 1 ? `linear-gradient(90deg,${palette.light} 0%,${palette.light} 44%,transparent 82%)` : `linear-gradient(90deg,${palette.dark} 4%,${palette.dark}e8 48%,transparent)` }} />
++            <div className={cn("relative z-10 flex h-full flex-col justify-center p-6", index === 1 ? "max-w-[58%]" : "max-w-[86%]", index === 1 ? "text-slate-950" : "text-white")}><span className="text-[8px] font-bold uppercase tracking-[.22em]" style={{ color: palette.accent }}>{item.name}</span><div className={cn("mt-4 leading-[.94]", index === 2 ? "font-serif text-3xl italic" : "text-3xl font-black")}>{copy.headline}</div><span className="mt-6 w-fit border-b pb-1 text-[9px] font-bold" style={{ borderColor: palette.accent }}>{brief.goal}</span></div>
++          </div>
++          <div className="p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-sans text-lg font-bold">{item.name}</h3><div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{item.lengthMode} · {item.assetMode.replace("-", " ")}</div></div>{active && <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />}</div><p className="mt-3 text-xs leading-5 text-muted-foreground">{item.description}</p><div className="mt-4 rounded-xl bg-secondary p-3 text-xs leading-5"><strong>Built to help visitors:</strong> {item.visitorJob}</div>{item.warnings.length > 0 && <p className="mt-3 text-[11px] leading-5 text-muted-foreground">{item.warnings[0]}</p>}</div>
++        </button>;
++      })}</div>}
++      <section className="rounded-2xl border border-border bg-card p-6"><div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Page plan</div><h2 className="mt-2 text-2xl font-black">Built around {brief.goal.toLowerCase()}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">The page length adapts to the evidence supplied. Empty or unsupported sections are removed instead of filled with generic copy.</p><div className="mt-4 flex flex-wrap gap-2">{(brief.sections || []).map((section) => <span key={section} className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold capitalize">{section}</span>)}</div></div><div className="rounded-xl bg-secondary p-5"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={brief.banner} onChange={(event) => setBrief({ ...brief, banner: event.target.checked })} className="mt-1 accent-[#ef162f]" /><span><span className="text-sm font-bold">Announcement banner</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Use only for a real opening, launch or time-sensitive offer.</span></span></label>{brief.banner && <input value={brief.bannerText} onChange={(event) => setBrief({ ...brief, bannerText: event.target.value })} placeholder="Example: Three coaching places available this month" className="mt-4 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-border" />}</div></div></section>
++      <div className="flex flex-wrap items-center justify-between gap-3"><button onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />Back</button><div className="flex flex-wrap items-center gap-3">{hasDraft && <button onClick={returnToEditor} className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold">Return to my current draft</button>}<button onClick={build} disabled={generationAttempts >= 2 || loading || options.length === 0 || !selectedId} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-6 py-3.5 text-sm font-bold text-white disabled:opacity-40">{hasDraft ? "Generate this direction" : "Build my website"}<ArrowRight className="h-4 w-4" /></button><span className="text-xs text-muted-foreground">{Math.max(0, 2 - generationAttempts)} AI drafts remaining. Design controls and manual edits use no AI.</span></div></div>
+     </div></div>;
+ }
+ 
+-function recommendedSections(type: string) { if (type.includes("studio") || type.includes("instructor")) return ["Hero", "Classes", "Schedule", "About", "Testimonials", "Location", "Booking"]; if (type.includes("Online")) return ["Hero", "Programme", "Who it is for", "Process", "Results", "FAQ", "Apply"]; return ["Hero", "Services", "Who it is for", "About", "Results", "FAQ", "Booking"]; }
+-
+ function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Brief; palette: PaletteChoice; copy: SiteCopy; heroImage: string; index: number }) {
+   const progress = Math.round(((index + 1) / buildStages.length) * 100);
+   return <div><ShellHeader title="Preparing your website preview" subtitle="We are writing and arranging your page from the information and evidence you supplied." />
+@@ -820,9 +937,9 @@ function BuildingScreen({ brief, palette, copy, heroImage, index }: { brief: Bri
+   </div>;
+ }
+ 
+-function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, changeDirection, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; changeDirection: () => void; generationAttempts: number; saved: string }) {
++function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection, updateHighlight, palette, paletteId, setPaletteId, fontStyle, setFontStyle, heroImage, direction, compositionId, ownPhoto, replaceImage, previewSize, setPreviewSize, selectedPart, setSelectedPart, updateCopy, aiPrompt, setAiPrompt, applyAiChange, aiChanges, approve, changeDirection, generationAttempts, saved }: { brief: Brief; setBrief: (brief: Brief) => void; copy: SiteCopy; generatedSections: GeneratedSection[]; updateSection: (id: string, key: "eyebrow" | "title" | "body", value: string) => void; updateHighlight: (id: string, index: number, value: string) => void; palette: PaletteChoice; paletteId: string; setPaletteId: (id: string) => void; fontStyle: string; setFontStyle: (font: string) => void; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; replaceImage: () => void; previewSize: PreviewSize; setPreviewSize: (size: PreviewSize) => void; selectedPart: EditablePart; setSelectedPart: (part: EditablePart) => void; updateCopy: (part: EditablePart, value: string) => void; aiPrompt: string; setAiPrompt: (value: string) => void; applyAiChange: () => void; aiChanges: number; approve: () => void; changeDirection: () => void; generationAttempts: number; saved: string }) {
+   return <div className="min-h-screen bg-secondary"><div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-4"><div className="mr-auto"><div className="text-xl font-black tracking-tight">Review your website</div><div className="text-xs text-muted-foreground">Edit the hero and about text in the preview; edit the remaining sections in the right panel.</div></div><div className="flex rounded-lg bg-secondary p-1">{([{ id: "desktop", icon: Monitor, label: "Desktop preview" }, { id: "tablet", icon: Tablet, label: "Tablet preview" }, { id: "mobile", icon: Smartphone, label: "Mobile preview" }] as const).map(({ id, icon: Icon, label }) => <button key={id} aria-label={label} onClick={() => setPreviewSize(id)} className={cn("rounded-md p-2", previewSize === id ? "bg-card text-muted-foreground shadow-sm" : "text-muted-foreground")}><Icon className="h-4 w-4" /></button>)}</div><div className="items-center gap-2 px-2 text-xs text-muted-foreground md:flex"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{saved}</div><button onClick={approve} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-3 text-sm font-bold text-white">Approve website<ArrowRight className="h-4 w-4" /></button></div>
+-    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
++    <div className="grid min-h-[calc(100vh-77px)] xl:grid-cols-[1fr_340px]"><div className="overflow-auto p-5"><div className={cn("mx-auto overflow-hidden rounded-xl bg-card shadow-[0_25px_80px_rgba(25,27,30,.13)] transition-all", previewSize === "desktop" ? "max-w-[1120px]" : previewSize === "tablet" ? "max-w-[760px]" : "max-w-[390px]")}><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} previewSize={previewSize} fontStyle={fontStyle} selectedPart={selectedPart} select={setSelectedPart} replaceImage={replaceImage} /></div></div>
+       <aside className="border-l border-border bg-card p-5"><div className="flex items-center justify-between"><h2 className="text-base font-black">{selectedPart === "headline" ? "Hero headline" : selectedPart === "subheadline" ? "Hero description" : selectedPart === "button" ? "Primary button" : "About section"}</h2><X className="h-4 w-4 text-muted-foreground" /></div><div className="mt-6"><Field label="Edit text"><textarea value={copy[selectedPart]} onChange={(event) => updateCopy(selectedPart, event.target.value)} className="min-h-24 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-border" /></Field></div><button onClick={replaceImage} className="mt-5 flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left text-sm font-semibold"><div className="grid h-10 w-14 place-items-center overflow-hidden rounded-lg bg-secondary"><img src={heroImage} className="h-full w-full object-cover" alt="Current" /></div>Replace hero image</button>
+       <div className="mt-6 border-t pt-5"><Field label="Where should the main button go?" hint="Booking URL, mailto: email link, or tel: phone link."><TextInput value={brief.bookingLink} onChange={(value) => setBrief({ ...brief, bookingLink: value })} placeholder="https://..." /></Field>{brief.bookingLink && !safeLink(brief.bookingLink) && <p className="mt-2 text-xs text-red-700">This link is not valid yet.</p>}</div>
+       <details className="mt-6 border-t pt-5"><summary className="cursor-pointer text-sm font-black">Evidence and FAQ</summary><div className="mt-4 space-y-4">{([['credentials', 'Qualifications'], ['results', 'Verified results'], ['testimonialQuote', 'Approved client quote'], ['testimonialName', 'Client name'], ['faqQuestion', 'Common question'], ['faqAnswer', 'Your answer']] as const).map(([key, label]) => <Field key={key} label={label}><textarea value={brief[key]} onChange={(event) => setBrief({ ...brief, [key]: event.target.value })} className="min-h-16 w-full rounded-xl border border-border p-3 text-sm" /></Field>)}</div></details>
+@@ -832,8 +949,11 @@ function EditorScreen({ brief, setBrief, copy, generatedSections, updateSection,
+   </div>;
+ }
+ 
+-function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, direction, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; heroImage: string; direction: number; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
++function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, direction, compositionId, ownPhoto, previewSize, fontStyle, selectedPart, select, replaceImage, editable = true }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; previewSize: PreviewSize; fontStyle: string; selectedPart: EditablePart; select: (part: EditablePart) => void; replaceImage: () => void; editable?: boolean }) {
+   const narrow = previewSize === "mobile";
++  if (compositionId === "guided-personal") {
++    return <GuidedPersonalSite brief={brief} copy={copy} sections={generatedSections} heroImage={heroImage} useImage={ownPhoto} accent={palette.accent === "#ef162f" ? "#e0bca9" : palette.accent} narrow={narrow} editable={editable} selectedPart={selectedPart} onSelect={select} onReplaceImage={replaceImage} />;
++  }
+   const selected = "relative outline outline-2 outline-offset-4 outline-[#ef162f]";
+   const included = (brief.sections || initialBrief.sections).filter((id) => id !== "approach" || generatedSections.some((section) => section.id === id));
+   const editorial = fontStyle === "Premium editorial";
+@@ -860,10 +980,10 @@ function WebsiteCanvas({ brief, copy, generatedSections, palette, heroImage, dir
+ 
+ function WebCard({ title, text }: { title: string; text: string }) { return <div className="rounded-xl bg-secondary p-5"><div className="font-bold">{title}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></div>; }
+ 
+-function DeliveryScreen({ brief, copy, generatedSections, palette, fontStyle, heroImage, direction, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; ownPhoto: boolean; edit: () => void; download: () => void }) {
++function DeliveryScreen({ brief, copy, generatedSections, palette, fontStyle, heroImage, direction, compositionId, ownPhoto, edit, download }: { brief: Brief; copy: SiteCopy; generatedSections: GeneratedSection[]; palette: PaletteChoice; fontStyle: string; heroImage: string; direction: number; compositionId: string; ownPhoto: boolean; edit: () => void; download: () => void }) {
+   const [publishingPath, setPublishingPath] = useState<"guide" | "hosting" | "developer" | null>(null);
+   return <div><ShellHeader step={5} title="Your website is ready" subtitle="Your approved website, files and publishing guidance are available below." />
+-    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website belongs to you. The download is an HTML file, not a live hosted website.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website HTML</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is embedded inside the downloaded file." : "This preview uses a demonstration photo. Replace it with a licensed or owned image before publishing."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" onClick={() => setPublishingPath("guide")} selected={publishingPath === "guide"} /><DeliveryChoice icon={Globe2} title="I already have hosting" onClick={() => setPublishingPath("hosting")} selected={publishingPath === "hosting"} /><DeliveryChoice icon={FileArchive} title="Give it to my developer" onClick={() => setPublishingPath("developer")} selected={publishingPath === "developer"} /></div>{publishingPath && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6"><strong>{publishingPath === "guide" ? "A simple route to a live page" : publishingPath === "hosting" ? "Using your existing provider" : "Developer hand-off"}</strong><p className="mt-2 text-muted-foreground">{publishingPath === "guide" ? "Download the HTML, open it on your computer to check the final version, then upload it to a static website host. The host gives you a web address; connecting your own domain is an optional final step. Hosting is a separate service and is not included in this purchase." : publishingPath === "hosting" ? "Download the HTML and ask your hosting provider how to publish a standalone static page. Some builders, including WordPress and Squarespace, do not accept a complete HTML page as a one-click replacement. Keep your existing site unchanged until you have tested the new page at a separate address." : "Download the HTML and send that file to your developer with your preferred domain, booking destination and any final copy changes. They can publish it on your hosting and test the form or booking link. You do not need to share hosting passwords inside this portal."}</p></div>}</div></aside></section>
++    <div className="mx-auto max-w-[1320px] space-y-6 p-6 md:p-10"><section className="grid overflow-hidden rounded-[26px] border border-border bg-card xl:grid-cols-[1fr_420px]"><div className="bg-secondary p-5"><div className="overflow-hidden rounded-xl shadow-xl"><WebsiteCanvas brief={brief} copy={copy} generatedSections={generatedSections} palette={palette} heroImage={heroImage} direction={direction} compositionId={compositionId} ownPhoto={ownPhoto} previewSize="desktop" fontStyle={fontStyle} selectedPart="headline" select={() => undefined} replaceImage={() => undefined} editable={false} /></div></div><aside className="p-7"><div className="grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground"><Check className="h-6 w-6" /></div><h2 className="mt-5 text-3xl font-black tracking-tight">Approved and prepared</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your final website belongs to you. The download is an HTML file, not a live hosted website.</p><button onClick={download} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-4 text-sm font-bold text-white"><Download className="h-4 w-4" />Download website HTML</button><button onClick={edit} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3.5 text-sm font-semibold"><Pencil className="h-4 w-4" />Return to editor</button><p className="mt-4 text-xs leading-5 text-muted-foreground">{ownPhoto ? "Your uploaded hero image is embedded inside the downloaded file." : "This design is image-light, so it remains complete without stock photography."}</p><div className="mt-7 border-t pt-6"><div className="text-sm font-black">How would you like to publish?</div><div className="mt-3 space-y-2"><DeliveryChoice icon={CircleHelp} title="Guide me through it" onClick={() => setPublishingPath("guide")} selected={publishingPath === "guide"} /><DeliveryChoice icon={Globe2} title="I already have hosting" onClick={() => setPublishingPath("hosting")} selected={publishingPath === "hosting"} /><DeliveryChoice icon={FileArchive} title="Give it to my developer" onClick={() => setPublishingPath("developer")} selected={publishingPath === "developer"} /></div>{publishingPath && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6"><strong>{publishingPath === "guide" ? "A simple route to a live page" : publishingPath === "hosting" ? "Using your existing provider" : "Developer hand-off"}</strong><p className="mt-2 text-muted-foreground">{publishingPath === "guide" ? "Download the HTML, open it on your computer to check the final version, then upload it to a static website host. The host gives you a web address; connecting your own domain is an optional final step. Hosting is a separate service and is not included in this purchase." : publishingPath === "hosting" ? "Download the HTML and ask your hosting provider how to publish a standalone static page. Some builders, including WordPress and Squarespace, do not accept a complete HTML page as a one-click replacement. Keep your existing site unchanged until you have tested the new page at a separate address." : "Download the HTML and send that file to your developer with your preferred domain, booking destination and any final copy changes. They can publish it on your hosting and test the form or booking link. You do not need to share hosting passwords inside this portal."}</p></div>}</div></aside></section>
+       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><BuildCheck title="Visual presentation" text="Colour, typography, imagery and spacing applied consistently." /><BuildCheck title="Visitor journey" text="Primary service and action established above the fold." /><BuildCheck title="Mobile presentation" text="Responsive layout prepared for phones and tablets." /><BuildCheck title="SEO foundations" text="Title, description, headings and image text prepared." /></section></div>
+   </div>;
+ }
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 34a5bab..d25d483 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -155,6 +155,19 @@ paths:
+             application/json:
+               schema: { $ref: "#/components/schemas/ProjectAsset" }
+ 
++  /website-projects/{projectId}/directions:
++    parameters:
++      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
++    get:
++      operationId: getWebsiteDirections
++      tags: [dfy]
++      responses:
++        "200":
++          description: Eligible complete-page directions for this customer's saved brief and assets
++          content:
++            application/json:
++              schema: { $ref: "#/components/schemas/WebsiteDirectionAnalysis" }
++
+   /website-projects/{projectId}/generate:
+     parameters:
+       - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+@@ -1203,6 +1216,31 @@ components:
+         createdAt: { type: string, format: date-time }
+         updatedAt: { type: string, format: date-time }
+ 
++    WebsiteDirection:
++      type: object
++      required: [id, name, description, visitorJob, visualGrammar, score, lengthMode, assetMode, scaleMode, warnings]
++      properties:
++        id: { type: string }
++        name: { type: string }
++        description: { type: string }
++        visitorJob: { type: string }
++        visualGrammar: { type: string }
++        score: { type: number }
++        lengthMode: { type: string, enum: [compact, standard, expanded] }
++        assetMode: { type: string, enum: [image-light, image-led, image-rich] }
++        scaleMode: { type: string, enum: [solo, team, multi-location] }
++        warnings: { type: array, items: { type: string } }
++
++    WebsiteDirectionAnalysis:
++      type: object
++      required: [directions, globalBlocks]
++      properties:
++        directions:
++          type: array
++          maxItems: 3
++          items: { $ref: "#/components/schemas/WebsiteDirection" }
++        globalBlocks: { type: array, items: { type: string } }
++
+     CreateWebsiteProjectBody:
+       type: object
+       properties:
+diff --git a/scripts/site-generator-smoke.ts b/scripts/site-generator-smoke.ts
+new file mode 100644
+index 0000000..82a97a6
+--- /dev/null
++++ b/scripts/site-generator-smoke.ts
+@@ -0,0 +1,108 @@
++import { analyseDirections } from "../artifacts/api-server/src/lib/site-generator/engine";
++import { validateGeneratedDraft } from "../artifacts/api-server/src/lib/site-generator/validator";
++
++const assert = {
++  equal(actual: unknown, expected: unknown, message = "Values are not equal") {
++    if (actual !== expected) throw new Error(`${message}: expected ${String(expected)}, received ${String(actual)}`);
++  },
++  ok(value: unknown, message = "Expected value to be truthy") {
++    if (!value) throw new Error(message);
++  },
++};
++
++const base = {
++  businessName: "Example Coaching",
++  businessType: "Personal trainer",
++  mainService: "One-to-one strength coaching",
++  audience: "Busy adults returning to training",
++  location: "Manchester, UK",
++  country: "United Kingdom",
++  goal: "Book a consultation",
++  bookingLink: "https://example.com/book",
++  offer: "A free twenty-minute coaching call",
++  differentiator: "Calm coaching with a clear plan built around the client's schedule.",
++  sections: ["services", "about", "contact"],
++};
++
++const solo = analyseDirections({ brief: base, assetCount: 0, usableImageCount: 0 });
++assert.equal(solo.globalBlocks.length, 0);
++assert.equal(solo.directions[0]?.id, "guided-personal");
++assert.equal(solo.directions[0]?.assetMode, "image-light");
++
++const strengthWithoutPhoto = analyseDirections({ brief: { ...base, businessType: "Strength and performance coach" }, assetCount: 0, usableImageCount: 0 });
++assert.ok(!strengthWithoutPhoto.directions.some((direction) => direction.id === "documentary-performance"));
++
++const strengthWithPhoto = analyseDirections({ brief: { ...base, businessType: "Strength and performance coach" }, assetCount: 1, usableImageCount: 1 });
++assert.ok(strengthWithPhoto.directions.some((direction) => direction.id === "documentary-performance"));
++
++const studioWithoutSchedule = analyseDirections({ brief: { ...base, businessType: "Pilates studio", goal: "Fill classes" }, assetCount: 0, usableImageCount: 0 });
++assert.ok(!studioWithoutSchedule.directions.some((direction) => direction.id === "community-schedule"));
++
++const studioWithSchedule = analyseDirections({ brief: { ...base, businessType: "Pilates studio", goal: "Fill classes", schedule: "Monday 18:00 and Wednesday 09:30" }, assetCount: 0, usableImageCount: 0 });
++assert.ok(studioWithSchedule.directions.some((direction) => direction.id === "community-schedule"));
++
++const multi = analyseDirections({ brief: { ...base, businessScale: "Multiple locations", locationCount: "4" }, assetCount: 0, usableImageCount: 0 });
++assert.ok(multi.directions.every((direction) => direction.scaleMode === "multi-location"));
++assert.ok(multi.directions.some((direction) => direction.warnings.some((warning) => warning.includes("Extra Pages"))));
++
++const countries = ["United Kingdom", "United States", "Canada", "Australia", "New Zealand"];
++const businessTypes = [
++  "Personal trainer",
++  "Online fitness coach",
++  "Pilates instructor",
++  "Yoga studio",
++  "Bootcamp coach",
++  "Premium private trainer",
++  "Strength and performance coach",
++  "Rehabilitation specialist",
++  "Small gym",
++  "Older adult fitness coach",
++];
++
++let caseCount = 0;
++for (const country of countries) {
++  for (const businessType of businessTypes) {
++    for (const variant of [0, 1]) {
++      const classLed = /pilates|yoga|bootcamp|gym/i.test(businessType);
++      const specialist = /rehabilitation/i.test(businessType);
++      const context = {
++        brief: {
++          ...base,
++          country,
++          businessType,
++          goal: classLed ? "Fill classes" : "Book a consultation",
++          schedule: classLed ? "Monday 18:00; Saturday 09:00" : "",
++          credentials: specialist ? "Registered rehabilitation specialist" : "",
++          businessScale: variant ? "Team at one location" : "Solo operator",
++          contentLength: variant ? "Standard" : "Auto",
++        },
++        assetCount: variant ? 5 : 0,
++        usableImageCount: variant ? 5 : 0,
++      };
++      const result = analyseDirections(context);
++      assert.equal(result.globalBlocks.length, 0, `${businessType} in ${country} should have a complete core brief`);
++      assert.ok(result.directions.length > 0, `${businessType} in ${country} should receive at least one eligible direction`);
++      assert.ok(result.directions.length <= 3);
++      caseCount++;
++    }
++  }
++}
++assert.equal(caseCount, 100);
++
++const unsafeDraft = {
++  copy: {
++    headline: "Build strength with expert coaching",
++    subheadline: "One-to-one coaching for busy adults in Manchester who want a clear way back into training.",
++    about: "We have helped 500 clients achieve a 40% improvement.",
++    button: "Book a consultation",
++  },
++  sections: [
++    { id: "services", eyebrow: "Coaching", title: "A plan for your week", body: "Personal coaching shaped around your experience, schedule and current training routine.", layout: "editorial" as const, highlights: [] },
++    { id: "about", eyebrow: "About", title: "A calm coaching approach", body: "Clear guidance and practical support help you build a routine you can keep using.", layout: "editorial" as const, highlights: [] },
++    { id: "contact", eyebrow: "Next step", title: "Talk through your goals", body: "Book a short conversation to decide whether the coaching is suitable for you.", layout: "statement" as const, highlights: [] },
++  ],
++};
++const validation = validateGeneratedDraft(base, unsafeDraft);
++assert.ok(validation.some((issue) => issue.code === "unsupported-result" && issue.severity === "error"));
++
++console.log(`Site generator smoke test passed: ${caseCount} adversarial selection cases plus delivery validation.`);
+-- 
+2.53.0.windows.3
+
