@@ -299,6 +299,11 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
       ...profileFacts,
       ...project.briefData,
     }).filter(([, value]) => value !== "" && value !== null && value !== undefined));
+    // Constrain provenance at generation time. Prompt instructions alone are
+    // not enough: the model also sees selectedStyle and generationPlan and can
+    // otherwise cite those objects (or invent a convenient alias such as
+    // "team") even though they are not factual source fields.
+    const sourceFactKeys = Object.keys(sourceFacts);
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_WEBSITE_MODEL || "gpt-5.4-mini",
@@ -383,7 +388,7 @@ router.post("/website-projects/:projectId/generate", async (req, res: Response) 
                 additionalProperties: false,
                 required: ["sourceFields", "claimType", "verified", "exact"],
                 properties: {
-                  sourceFields: { type: "array", items: { type: "string" } },
+                  sourceFields: { type: "array", items: { type: "string", enum: sourceFactKeys } },
                   claimType: { type: "string", enum: ["offer", "audience", "location", "credential", "result", "testimonial", "price", "date", "capacity", "general"] },
                   verified: { type: "boolean" },
                   exact: { type: "boolean" },
@@ -407,7 +412,7 @@ Create only the IDs selected in sourceFacts.sections, each at most once. Return 
 For each section, choose an eyebrow of 2–5 words and a layout: editorial for calm explanatory copy, split for a practical offer or process, statement for one strong point. Vary layouts purposefully rather than repeating one. Write one clear title and a substantive body suited to the section, typically 35–80 words except for exact quotes or brief contact copy.
 For services and approach, add up to three concise highlights only when the brief contains distinct real service features or actual process steps. A highlight is a specific visitor-facing phrase, not a generic benefit or invented promise. Use an empty highlights array for other sections or when the evidence is insufficient.
 For results, credentials and FAQs, do not strengthen or generalise the supplied information. Keep testimonials exactly as provided. Make the call to action match the supplied conversion goal and destination.
-Every copy field and section must include provenance. sourceFields must contain only exact top-level key names from sourceFacts that actually contributed factual information. Do not add prefixes such as sourceFacts., websiteBrief. or businessProfile. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
+Every copy field and section must include provenance. sourceFields must contain only exact top-level key names from sourceFacts that actually contributed factual information. selectedStyle and generationPlan are presentation controls, not factual evidence, and must never appear in sourceFields. Do not invent aliases such as team; cite the exact sourceFacts key that contains the fact, such as businessScale or roughCopy. Do not add prefixes such as sourceFacts., websiteBrief. or businessProfile. exact is true only when wording must be preserved, such as a testimonial. verified means the customer supplied the fact; it does not mean Fitness Toolkit independently verified it. Return JSON only.`,
         },
         {
           role: "user",
